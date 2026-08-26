@@ -157,6 +157,11 @@ fun MoneyScreen() {
 
             Spacer(Modifier.height(12.dp))
 
+            // Инбокс банковских пушей — только на вкладке Обзор текущего месяца
+            if (currentTab == MoneyTab.OVERVIEW) {
+                PendingInboxSection(AppRepo.get(context))
+            }
+
             // Табы-чипы секций
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MoneyTab.entries.forEach { tab ->
