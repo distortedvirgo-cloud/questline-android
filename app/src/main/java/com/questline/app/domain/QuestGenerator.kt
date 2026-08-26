@@ -76,10 +76,9 @@ object QuestGenerator {
                 .filter { it.questKey == pickKey || (i > 0 && usedTemplates.contains(it.id).not() && it.questKey != pickKey && Random.nextInt(4) == 0) }
                 .filterNot { usedTemplates.contains(it.id) }
 
-            val chosen = when {
-                candidates.isNotEmpty() -> candidates.random()
-                else -> templates.filterNot { usedTemplates.contains(it.id) }.ifEmpty { return }
-            }
+            val fallback = templates.filterNot { usedTemplates.contains(it.id) }
+            if (fallback.isEmpty()) return
+            val chosen: Template = candidates.randomOrNull() ?: fallback.random()
             usedTemplates.add(chosen.id)
             repo.quests.insert(
                 Quest(

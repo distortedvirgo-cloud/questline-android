@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.questline.app.data.AppRepo
 import com.questline.app.ui.money.MoneyScreen
 import com.questline.app.ui.profile.ProfileScreen
+import com.questline.app.ui.settings.SettingsScreen
 import com.questline.app.ui.tasks.TasksScreen
 import com.questline.app.ui.today.TodayScreen
 
@@ -48,7 +49,8 @@ fun QuestlineApp() {
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
-            NavigationBar(containerColor = androidx.compose.ui.theme.Q.surfaceAlt) {
+            if (currentRoute != "settings") {
+                NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
                 tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = currentRoute == tab.route,
@@ -64,6 +66,7 @@ fun QuestlineApp() {
                         label = { Text(tab.label) },
                     )
                 }
+                }
             }
         },
     ) { padding ->
@@ -75,7 +78,15 @@ fun QuestlineApp() {
             composable("today") { TodayScreen() }
             composable("tasks") { TasksScreen() }
             composable("money") { MoneyScreen() }
-            composable("profile") { ProfileScreen(onNavigateToMoney = { navController.navigate("money") }) }
+            composable("profile") {
+                ProfileScreen(
+                    onNavigateToMoney = { navController.navigate("money") },
+                    onNavigateToSettings = { navController.navigate("settings") },
+                )
+            }
+            composable("settings") {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }

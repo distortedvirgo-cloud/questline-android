@@ -53,6 +53,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ProfileScreen(
     onNavigateToMoney: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
 ) {
     val profileContext = LocalContext.current
     val vm: ProfileViewModel = viewModel(key = "profile", factory = profileVmFactory(profileContext))
@@ -70,8 +71,8 @@ fun ProfileScreen(
 
         // Шапка: уровень и монеты
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard(Modifier.weight(1f), label = "Уровень", value = "${state.level}", sub = "+${state.xpIntoLevel}/${state.xpNeeded} XP")
-            StatCard(Modifier.weight(1f), label = "Монеты", value = "${state.coins}", sub = "🪙 косметика в будущем")
+            StatCard(Modifier.weight(1f), label = "Уровень", value = "${state.level}", sub = "+${state.xpIntoLevel}/${state.xpNeeded?.xpNeeded ?: ProgressionEngine.xpToNext(state.level)} XP")
+            StatCard(Modifier.weight(1f), label = "Монеты", value = "${state.coins}", sub = "Копи на темы и рамки")
         }
 
         Spacer(Modifier.height(18.dp))
@@ -128,6 +129,14 @@ fun ProfileScreen(
                 }
             }
         }
+
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "⚙ Настройки",
+            style = MaterialTheme.typography.titleMedium,
+            color = Q.accent,
+            modifier = Modifier.clickable { onNavigateToSettings() },
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 package com.questline.app.data
 
 import android.content.Context
+import com.questline.app.domain.ProgressionEngine
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -38,6 +39,39 @@ class AppRepo private constructor(context: Context) {
     suspend fun completeQuest(quest: Quest) {
         quests.update(quest.copy(status = "DONE", closedAtMillis = System.currentTimeMillis()))
         addCoins(quest.coinReward, "QUEST_DONE", quest.id)
+    }
+
+    /**
+     * Кор-луп «задача → квест»: закрытие задачи создаёт USER-квест,
+     * который тут же закрывается и даёт XP/монеты.
+     */
+    suspend fun completeTaskAsQuest(task: Task) {
+        val now = System.currentTimeMillis()
+        if (task.repeatDaily && task.lastDoneEpochDay == todayEpochDay) return
+        val updated = if (task.repeatDaily) {
+            task.copy(lastDoneEpochDay = todayEpochDay)
+        } else {
+            task.copy(done = true, doneAtMillis = now)
+        }
+        tasks.update(updated)
+        val key = task.categoryId
+            ?.let { categories.byId(it)?.questKey }
+            ?: "DISCIPLINE"
+        val questId = quests.insert(
+            Quest(
+                taskId = task.id,
+                source = "USER",
+                title = task.title,
+                questKey = key,
+                complexity = task.complexity,
+                xpReward = ProgressionEngine.xpFor(task.complexity),
+                coinReward = ProgressionEngine.coinsFor(task.complexity),
+                status = "DONE",
+                dateCreatedEpochDay = todayEpochDay,
+                closedAtMillis = now,
+            ),
+        )
+        addCoins(ProgressionEngine.coinsFor(task.complexity), "QUEST_DONE", questId)
     }
 
     companion object {
