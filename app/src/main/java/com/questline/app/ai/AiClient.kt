@@ -23,7 +23,7 @@ object AiPrefs {
     private const val KEY_LAST_AI_QUEST_DAY = "last_ai_quest_day"
 
     const val DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4"
-    const val DEFAULT_MODEL = "glm-4.6"
+    const val DEFAULT_MODEL = "glm-5.3-flash"
 
     fun baseUrl(ctx: Context) = prefs(ctx).getString(KEY_BASE, DEFAULT_BASE_URL).orEmpty().trim().ifEmpty { DEFAULT_BASE_URL }
     fun apiKey(ctx: Context) = prefs(ctx).getString(KEY_API, "").orEmpty()

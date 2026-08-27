@@ -22,6 +22,19 @@ class SmsBankReceiver : BroadcastReceiver() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onReceive(context: Context?, intent: Intent?) {
+        val pending = goAsync()
+        scope.launch {
+            try {
+                handleIntent(context, intent)
+            } catch (t: Throwable) {
+                Log.d(TAG, "Сбой приёма SMS: ${t.message}")
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    private suspend fun handleIntent(context: Context?, intent: Intent?) {
         try {
             if (context == null) return
             if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -45,29 +58,27 @@ class SmsBankReceiver : BroadcastReceiver() {
             }
 
             val appContext = context.applicationContext
-            scope.launch {
-                try {
-                    val dao = com.questline.app.data.AppRepo.get(appContext).pending
-                    val now = System.currentTimeMillis()
-                    if (dao.isDuplicate(text, now) > 0) return@launch
-                    dao.insert(
-                        PendingTxn(
-                            bankPackage = "sms:${sender.lowercase()}",
-                            title = "SMS $sender",
-                            text = text,
-                            amountMinor = parsed.amountMinor,
-                            type = parsed.type,
-                            epochDay = LocalDate.now().toEpochDay(),
-                            receivedMillis = now,
-                        ),
-                    )
-                    Log.d(TAG, "SMS-операция добавлена: ${parsed.type} ${parsed.amountMinor}")
-                } catch (e: Exception) {
-                    Log.d(TAG, "Ошибка записи SMS-операции: ${e.message}")
-                }
+            try {
+                val dao = com.questline.app.data.AppRepo.get(appContext).pending
+                val now = System.currentTimeMillis()
+                if (dao.isDuplicate(text, now) > 0) return
+                dao.insert(
+                    PendingTxn(
+                        bankPackage = "sms:${sender.lowercase()}",
+                        title = "SMS $sender",
+                        text = text,
+                        amountMinor = parsed.amountMinor,
+                        type = parsed.type,
+                        epochDay = LocalDate.now().toEpochDay(),
+                        receivedMillis = now,
+                    ),
+                )
+                Log.d(TAG, "SMS-операция добавлена: ${parsed.type} ${parsed.amountMinor}")
+            } catch (e: Exception) {
+                Log.d(TAG, "Ошибка записи SMS-операции: ${e.message}")
             }
         } catch (t: Throwable) {
-            Log.d(TAG, "Сбой приёма SMS: ${t.message}")
+            Log.d(TAG, "Сбой разбора SMS: ${t.message}")
         }
     }
 

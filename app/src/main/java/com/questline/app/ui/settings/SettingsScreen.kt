@@ -87,6 +87,8 @@ fun SettingsScreen(
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
+        com.questline.app.ui.settings.SyncHealthSection()
+        Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.AiSettingsSection()
         Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.BackupSection()
@@ -274,6 +276,6 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
-private fun hasNotificationListenerAccess(context: Context): Boolean =
+internal fun hasNotificationListenerAccess(context: Context): Boolean =
     androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
         .contains(context.packageName)

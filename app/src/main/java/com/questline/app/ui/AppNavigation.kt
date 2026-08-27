@@ -5,8 +5,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -21,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.questline.app.data.AppRepo
+import com.questline.app.ui.assistant.AssistantScreen
 import com.questline.app.ui.money.MoneyScreen
 import com.questline.app.ui.mirror.WeekMirrorScreen
 import com.questline.app.ui.profile.ProfileScreen
@@ -35,7 +38,8 @@ private val tabs = listOf(
     Tab("today", "Сегодня", Icons.Filled.Today),
     Tab("tasks", "Задачи", Icons.Filled.Checklist),
     Tab("money", "Деньги", Icons.Filled.Savings),
-    Tab("profile", "Профиль", Icons.Filled.Person),
+    Tab("profile", "Я", Icons.Filled.Person),
+    Tab("assistant", "AI", Icons.Filled.SmartToy),
 )
 
 @Composable
@@ -66,7 +70,7 @@ fun QuestlineApp() {
                             }
                         },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
+                        label = { Text(tab.label, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
                     )
                 }
                 }
@@ -87,6 +91,7 @@ fun QuestlineApp() {
                     onNavigateToSettings = { navController.navigate("settings") },
                 )
             }
+            composable("assistant") { AssistantScreen() }
             composable("settings") {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
