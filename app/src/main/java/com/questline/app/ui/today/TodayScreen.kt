@@ -86,7 +86,7 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
 
     /** Открытые авто-квесты сегодняшнего дня. */
     val questsOfDay: StateFlow<List<Quest>> = repo.quests.observeOpen()
-        .map { list -> list.filter { it.source == "AUTO" && it.dateCreatedEpochDay == todayEpochDay } }
+        .map { list -> list.filter { (it.source == "AUTO" && it.dateCreatedEpochDay == todayEpochDay) || it.source == "BUDGET" } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Задачи на сегодня — максимум 5 строк. */
@@ -172,6 +172,8 @@ fun TodayScreen() {
         QuestGenerator.ensureTodayQuests(repo, AppRepo.todayEpochDay)
         com.questline.app.domain.BudgetQuestEngine.ensureBudgetQuests(repo, AppRepo.todayEpochDay)
         com.questline.app.domain.BudgetQuestEngine.resolveBudgetQuests(repo, AppRepo.todayEpochDay)
+        // Разовая уборка: подтверждённые/отброшенные пуши и SMS старше недели
+        repo.pending.cleanupOld(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000)
         vm.loadProgressOnce()
     }
 
@@ -201,11 +203,10 @@ fun TodayScreen() {
         }
         Spacer(Modifier.height(20.dp))
 
+        AiQuestButton(repo)
+
         if (quests.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Квест дня", style = MaterialTheme.typography.titleMedium, color = Q.inkMuted, modifier = Modifier.weight(1f))
-                AiQuestButton(repo)
-            }
+            Text("Квест дня", style = MaterialTheme.typography.titleMedium, color = Q.inkMuted)
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 quests.forEach { quest ->

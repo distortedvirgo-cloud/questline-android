@@ -100,9 +100,22 @@ fun SyncHealthSection() {
                 )
             },
         )
+        if (android.os.Build.MANUFACTURER.contains("samsung", ignoreCase = true)) {
+            TextButton(onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }) { Text("Samsung: открыть страницу приложения") }
+            Text(
+                "На Samsung дополнительно проверь: страница приложения → Батарея → «Без ограничений»; Настройки → Батарея → Ограничения в фоне — отключи для Questline; «Переводить в сон» — исключи приложение.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Q.inkMuted,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         Text(
-            "Достаточно включить те каналы, которыми пользуешься. Приложение не висит в памяти — система будит его сама при SMS/уведомлении.",
+            "Достаточно включить те каналы, которыми пользуешься. Приложение не висит в памяти — система будит его сама при SMS/уведомлении. Режим энергосбережения Samsung может глушить фоновые приложения даже с галочкой выше — тогда отключи энергосбережение или добавь Questline в исключения.",
             style = MaterialTheme.typography.labelSmall,
             color = Q.inkMuted,
         )
