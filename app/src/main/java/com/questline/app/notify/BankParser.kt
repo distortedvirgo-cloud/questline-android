@@ -5,6 +5,8 @@ data class ParsedBankEvent(
     val amountMinor: Long,
     /** EXPENSE | INCOME */
     val type: String,
+    /** Остаток из пуша («Баланс: 548,04 ₽»); null, если сумма остатка не указана. */
+    val balanceMinor: Long? = null,
 )
 
 /**
@@ -27,6 +29,10 @@ data class ParsedBankEvent(
  *
  * Выбор суммы: берём денежное значение, БЛИЖАЙШЕЕ к ключевому слову операции;
  * суммы, стоящие сразу после слов баланса, при выборе отбрасываются.
+ *
+ * Отдельно возвращается [ParsedBankEvent.balanceMinor] — первая денежная сумма,
+ * стоящая сразу после слов баланса («баланс», «остаток», «осталось», «доступно»);
+ * если таких сумм нет — null.
  */
 object BankParser {
 
@@ -119,7 +125,15 @@ object BankParser {
 
         val amountMinor = findAmountNear(lower, anchor) ?: return null
         if (amountMinor <= 0L) return null
-        return ParsedBankEvent(amountMinor = amountMinor, type = type)
+
+        // Остаток: первая money-сумма, стоящая сразу после слова баланса
+        // («Баланс: 548,04 ₽»). Независимо от того, какая сумма стала операцией.
+        val balanceMinor = collectCurrencyAmounts(lower)
+            .filter { (position, _) -> belongsToBalance(lower, position) }
+            .minByOrNull { it.first }
+            ?.second
+
+        return ParsedBankEvent(amountMinor = amountMinor, type = type, balanceMinor = balanceMinor)
     }
 
     /** Раньше стоящее ключевое слово определяет тип операции. */

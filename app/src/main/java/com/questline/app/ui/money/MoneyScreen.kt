@@ -113,9 +113,9 @@ fun MoneyScreen() {
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
         ) {
-            // Текущий баланс (указывается пользователем, дальше считается сам)
-            BalanceCard(AppRepo.get(context))
-            Spacer(Modifier.height(12.dp))
+            // Компактная строка баланса + чипы карт/счетов
+            MoneyAccountsHeader(AppRepo.get(context))
+            Spacer(Modifier.height(8.dp))
 
             // Шапка месяца ‹ ›
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,7 +179,12 @@ fun MoneyScreen() {
 
             Spacer(Modifier.height(12.dp))
 
-            Box(Modifier.fillMaxSize()) {
+            AiMonthAnalysisSection(month)
+            Spacer(Modifier.height(12.dp))
+
+            // weight, а не fillMaxSize: Box занимает остаток после инбокса,
+            // иначе длинный инбокс выталкивается за экран без скролла
+            Box(Modifier.fillMaxWidth().weight(1f)) {
                 when (currentTab) {
                     MoneyTab.OVERVIEW -> OverviewSection(month, Modifier.fillMaxSize())
                     MoneyTab.BUDGETS -> BudgetsSection(month, Modifier.fillMaxSize())

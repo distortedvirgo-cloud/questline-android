@@ -19,22 +19,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.questline.app.notify.BankParser
 import com.questline.app.notify.BankPrefs
 import com.questline.app.data.AppRepo
 import com.questline.app.data.Category
 import com.questline.app.data.PendingTxn
+import com.questline.app.data.Txn
 import com.questline.app.ui.theme.Q
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 /**
  * Инбокс банковских пушей: карточки PENDING с подтверждением в транзакцию.
@@ -45,12 +50,13 @@ fun PendingInboxSection(repo: AppRepo) {
     val vm: PendingInboxViewModel = viewModel(key = "pending_inbox", factory = pendingInboxFactory(repo))
     val pending by vm.pending.collectAsStateWithLifecycle()
     val categories by vm.financeCategories.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     if (pending.isEmpty()) {
         // Молчаливый отказ — худший сценарий: пуш не пришёл и пользователь не знает,
         // что доступ к уведомлениям не выдан. Показываем подсказку только тогда,
         // когда автоучёт включён, а слушатель запрещён системой.
-        val context = LocalContext.current
         val granted = remember {
             androidx.core.app.NotificationManagerCompat
                 .getEnabledListenerPackages(context).contains(context.packageName)
@@ -91,10 +97,55 @@ fun PendingInboxSection(repo: AppRepo) {
             PendingCard(
                 item = item,
                 categories = categories,
-                onConfirm = { categoryId -> vm.confirm(item, categoryId) },
+                onConfirm = { categoryId ->
+                    scope.launch {
+                        if (item.type == "INCOME") {
+                            // Доход подтверждается без пикера: категория уже выбрана в карточке.
+                            // Вставляем напрямую, чтобы порядок был строго «сначала Txn,
+                            // потом обновление баланса» (см. updateBalanceFromPush).
+                            repo.txns.insert(
+                                Txn(
+                                    amountMinor = item.amountMinor,
+                                    type = "INCOME",
+                                    categoryId = categoryId,
+                                    epochDay = Instant.ofEpochMilli(item.receivedMillis)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDate()
+                                        .toEpochDay(),
+                                    note = item.title.ifBlank { "Из уведомления" },
+                                    source = "BANK_PUSH",
+                                    pendingId = item.id,
+                                    createdAtMillis = System.currentTimeMillis(),
+                                ),
+                            )
+                            repo.pending.setStatus(item.id, "CONFIRMED")
+                        } else {
+                            vm.confirm(item, categoryId)
+                        }
+                        updateBalanceFromPush(context, item)
+                    }
+                },
                 onDiscard = { vm.discard(item) },
             )
         }
+    }
+}
+
+/**
+ * Пуш часто несёт актуальный остаток («Баланс: 548,04 ₽») — обновляем им
+ * текущий баланс приложения. Вызывается ПОСЛЕ вставки Txn: якорь баланса
+ * ставится позже createdAt транзакции, поэтому подтверждённая операция
+ * не учитывается в движении дважды.
+ */
+private fun updateBalanceFromPush(context: android.content.Context, item: PendingTxn) {
+    val linked = if (item.title.isBlank()) item.text else item.title + "\n" + item.text
+    val balanceMinor = BankParser.parse(linked)?.balanceMinor ?: return
+    val now = System.currentTimeMillis()
+    val account = AccountsPrefs.findByLast4(context, item.text)
+    if (account != null) {
+        AccountsPrefs.upsertBalance(context, account.id, balanceMinor, now)
+    } else {
+        BalancePrefs.setValue(context, balanceMinor, now)
     }
 }
 
@@ -106,6 +157,11 @@ private fun PendingCard(
     onDiscard: () -> Unit,
 ) {
     var showPicker by remember { mutableStateOf(false) }
+    val isIncome = item.type == "INCOME"
+    // Доход не спрашивает категорию: первая INCOME-категория, иначе любая финансовая (kind != QUEST).
+    val incomeCategoryId = remember(categories) {
+        categories.firstOrNull { it.isIncome }?.id ?: categories.firstOrNull()?.id
+    }
     val time = remember(item.receivedMillis) {
         Instant.ofEpochMilli(item.receivedMillis).atZone(ZoneId.systemDefault())
             .format(DateTimeFormatter.ofPattern("d MMM, HH:mm"))
@@ -131,6 +187,7 @@ private fun PendingCard(
                 MoneyFormat.text(item.amountMinor),
                 style = MaterialTheme.typography.titleMedium,
                 fontFamily = FontFamily.Monospace,
+                color = if (isIncome) Q.success else Color.Unspecified,
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -142,7 +199,14 @@ private fun PendingCard(
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { showPicker = true }) { Text("Подтвердить") }
+            if (isIncome) {
+                TextButton(
+                    enabled = incomeCategoryId != null,
+                    onClick = { incomeCategoryId?.let(onConfirm) },
+                ) { Text("Подтвердить доход") }
+            } else {
+                TextButton(onClick = { showPicker = true }) { Text("Подтвердить") }
+            }
             TextButton(onClick = onDiscard) {
                 Text("Отбросить", color = Q.inkMuted)
             }

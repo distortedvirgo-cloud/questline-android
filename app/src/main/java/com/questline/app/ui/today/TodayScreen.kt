@@ -18,7 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -203,6 +206,9 @@ fun TodayScreen() {
         }
         Spacer(Modifier.height(20.dp))
 
+        BossCard(repo)
+        Spacer(Modifier.height(12.dp))
+
         AiQuestButton(repo)
 
         if (quests.isNotEmpty()) {
@@ -274,48 +280,72 @@ private fun StatCard(modifier: Modifier = Modifier, emoji: String, value: String
 
 @Composable
 private fun QuestCard(quest: Quest, emoji: String, busy: Boolean, vm: TodayViewModel) {
-    val pulse = remember(quest.id) { Animatable(1f) }
     val scope = rememberCoroutineScope()
+    val burst = rememberQuestBurstState(seed = quest.id)
+    var completing by remember { mutableStateOf(false) }
+    var cardTopLeft by remember { mutableStateOf(Offset.Zero) }
+    var buttonCenter by remember { mutableStateOf(Offset.Zero) }
 
     fun close() {
-        if (busy) return
-        scope.launch {
-            try {
-                vm.markQuestBusy(quest.id)
-                pulse.animateTo(PULSE_PEAK, tween(PULSE_HALF_MS))
-                vm.completeQuest(quest)
-                pulse.animateTo(1f, tween(PULSE_HALF_MS))
-            } finally {
-                vm.releaseQuestBusy(quest.id)
-            }
-        }
+        if (busy || completing) return
+        completing = true // эффекты; реальное закрытие — по окончании анимации (onFinished)
     }
 
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = pulse.value; scaleY = pulse.value },
-        shape = CARD_SHAPE,
-        colors = cardColors(),
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { cardTopLeft = it.boundsInWindow().topLeft },
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(CHIP_SHAPE).background(Q.surfaceAlt), contentAlignment = Alignment.Center) {
-                Text(emoji, fontSize = 20.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(quest.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
-                Spacer(Modifier.height(2.dp))
-                Text("+${quest.xpReward} XP", style = MaterialTheme.typography.bodySmall, color = Q.accent)
-            }
-            Spacer(Modifier.width(12.dp))
-            Button(
-                onClick = { close() },
-                enabled = !busy,
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-                Text("Выполнить", style = MaterialTheme.typography.labelLarge)
+        OutlinedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = burst.cardScale
+                    scaleY = burst.cardScale
+                    alpha = burst.cardAlpha
+                },
+            shape = CARD_SHAPE,
+            colors = cardColors(),
+        ) {
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).clip(CHIP_SHAPE).background(Q.surfaceAlt), contentAlignment = Alignment.Center) {
+                    Text(emoji, fontSize = 20.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    // Заголовок без обрезки: переносится на столько строк, сколько нужно.
+                    Text(quest.title, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.height(2.dp))
+                    Text("+${quest.xpReward} XP", style = MaterialTheme.typography.bodySmall, color = Q.accent)
+                }
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = { close() },
+                    enabled = !busy && !completing,
+                    modifier = Modifier.onGloballyPositioned { buttonCenter = it.boundsInWindow().center },
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Text("Выполнить", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
+        QuestCompletionOverlay(
+            visible = completing,
+            xpText = "+${quest.xpReward} XP",
+            origin = buttonCenter - cardTopLeft,
+            onFinished = {
+                scope.launch {
+                    try {
+                        vm.markQuestBusy(quest.id)
+                        vm.completeQuest(quest)
+                    } finally {
+                        vm.releaseQuestBusy(quest.id)
+                    }
+                }
+            },
+            state = burst,
+        )
     }
 }
 
