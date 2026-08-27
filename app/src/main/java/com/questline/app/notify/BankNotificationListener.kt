@@ -66,7 +66,9 @@ class BankNotificationListener : NotificationListenerService() {
     private suspend fun handlePush(bankPackage: String, title: String, text: String) {
         if (!BankPrefs.isEnabled(this)) return
 
-        val parsed = BankParser.parse(text) ?: return
+        // Тип операции у Сбера часто в ЗАГОЛОВКЕ («Перевод от Ивана»), а в тексте
+        // только «+ 100 ₽ — Баланс: …». Парсим связку, дедуп и хранение — по тексту.
+        val parsed = BankParser.parse(if (title.isBlank()) text else title + "\n" + text) ?: return
         val now = System.currentTimeMillis()
 
         val dao = AppRepo.get(applicationContext).pending

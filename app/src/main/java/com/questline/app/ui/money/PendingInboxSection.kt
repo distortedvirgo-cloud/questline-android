@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.questline.app.notify.BankPrefs
 import com.questline.app.data.AppRepo
 import com.questline.app.data.Category
 import com.questline.app.data.PendingTxn
@@ -45,7 +46,36 @@ fun PendingInboxSection(repo: AppRepo) {
     val pending by vm.pending.collectAsStateWithLifecycle()
     val categories by vm.financeCategories.collectAsStateWithLifecycle()
 
-    if (pending.isEmpty()) return
+    if (pending.isEmpty()) {
+        // Молчаливый отказ — худший сценарий: пуш не пришёл и пользователь не знает,
+        // что доступ к уведомлениям не выдан. Показываем подсказку только тогда,
+        // когда автоучёт включён, а слушатель запрещён системой.
+        val context = LocalContext.current
+        val granted = remember {
+            androidx.core.app.NotificationManagerCompat
+                .getEnabledListenerPackages(context).contains(context.packageName)
+        }
+        if (BankPrefs.isEnabled(context) && !granted) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .background(Q.surface, RoundedCornerShape(16.dp))
+                    .border(1.dp, Q.border, RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+            ) {
+                Text("Пуши Сбера не попадут во входящие: не выдан доступ к уведомлениям.", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }) { Text("Открыть настройки") }
+            }
+        }
+        return
+    }
 
     Column(
         modifier = Modifier
