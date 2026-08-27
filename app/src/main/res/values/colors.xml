@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Фон окна активности: совпадает с палитрой STYLE.md, чтобы не было
+         белой вспышки при холодном старте. Ночная версия — values-night. -->
+    <color name="window_bg">#FAFAF7</color>
+</resources>

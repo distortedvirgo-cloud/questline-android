@@ -53,7 +53,8 @@ fun QuestlineApp() {
     LaunchedEffect(Unit) { AppRepo.get(context).seedIfEmpty() }
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        // Фон схемы, не прозрачный: под ним окно активности может быть светлым
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             val hideBar = currentRoute in setOf("settings", "mirror", "shop")
             if (!hideBar) {
