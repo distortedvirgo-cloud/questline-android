@@ -202,7 +202,10 @@ fun TodayScreen() {
         Spacer(Modifier.height(20.dp))
 
         if (quests.isNotEmpty()) {
-            Text("Квест дня", style = MaterialTheme.typography.titleMedium, color = Q.inkMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Квест дня", style = MaterialTheme.typography.titleMedium, color = Q.inkMuted, modifier = Modifier.weight(1f))
+                AiQuestButton(repo)
+            }
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 quests.forEach { quest ->
