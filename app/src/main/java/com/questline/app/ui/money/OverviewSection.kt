@@ -32,7 +32,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.questline.app.data.AppRepo
 import com.questline.app.data.Category
 import com.questline.app.data.Txn
-import com.questline.app.ui.theme.Q
+import com.questline.app.ui.theme.QColors
+import com.questline.app.ui.theme.questlineQ
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -42,18 +43,22 @@ import java.time.LocalDate
  * Нейтральная палитра срезов диаграммы: осветлённые роли STYLE.md.
  * colorIndex категории указывает на индекс в этом наборе.
  */
-private val slicePalette = listOf(
-    Q.accent,          // 0
-    Q.success,         // 1
-    Q.warn,            // 2
-    Q.coin,            // 3
-    Q.danger,          // 4
+private fun slicePalette(q: QColors) = listOf(
+    q.accent,          // 0
+    q.success,         // 1
+    q.warn,            // 2
+    q.coin,            // 3
+    q.danger,          // 4
     Color(0xFF7B86E8), // 5 — светло-акцентный
     Color(0xFF6699A8), // 6 — приглушённый морской
     Color(0xFF8F8F8F), // 7 — нейтральный серый
 )
 
-fun colorForIndex(idx: Int): Color = slicePalette[idx % slicePalette.size]
+@Composable
+fun colorForIndex(idx: Int): Color {
+    val palette = slicePalette(questlineQ())
+    return palette[idx % palette.size]
+}
 
 class OverviewViewModel(repo: AppRepo) : ViewModel() {
 
@@ -138,6 +143,7 @@ fun OverviewSection(month: LocalDate, modifier: Modifier = Modifier) {
 
 @Composable
 private fun DonutChart(slices: List<ExpenseSlice>, totalMinor: Long, modifier: Modifier = Modifier) {
+    val palette = slicePalette(questlineQ())
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 34.dp.toPx()
@@ -149,7 +155,7 @@ private fun DonutChart(slices: List<ExpenseSlice>, totalMinor: Long, modifier: M
             slices.forEachIndexed { index, slice ->
                 val sweep = slice.amountMinor.toFloat() / totalMinor.toFloat() * 360f
                 drawArc(
-                    color = colorForIndex(slice.category?.colorIndex ?: 7),
+                    color = palette[(slice.category?.colorIndex ?: 7) % palette.size],
                     startAngle = startAngle,
                     sweepAngle = sweep,
                     useCenter = false,
@@ -219,7 +225,7 @@ private fun TxnRow(txn: Txn, category: Category?) {
                 text = amountText,
                 style = MaterialTheme.typography.bodyLarge,
                 fontFamily = FontFamily.Monospace,
-                color = if (isExpense) MaterialTheme.colorScheme.onSurface else Q.success,
+                color = if (isExpense) MaterialTheme.colorScheme.onSurface else questlineQ().success,
             )
             Text(
                 text = MoneyFormat.dayWords(txn.epochDay),

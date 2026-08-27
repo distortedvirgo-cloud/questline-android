@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -43,6 +46,7 @@ import com.questline.app.BuildConfig
 import com.questline.app.notify.BankPrefs
 import com.questline.app.update.UpdateChecker
 import com.questline.app.update.UpdateConfig
+import com.questline.app.ui.theme.AppTheme
 import com.questline.app.ui.theme.Q
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +91,8 @@ fun SettingsScreen(
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
+        AppearanceSection()
+        Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.SyncHealthSection()
         Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.AiSettingsSection()
@@ -258,6 +264,27 @@ fun SettingsScreen(
                 TextButton(onClick = { pendingRelease = null }) { Text("Позже") }
             },
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AppearanceSection() {
+    val context = LocalContext.current
+    SectionCard(title = "Оформление") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                AppTheme.SYSTEM to "Системная",
+                AppTheme.LIGHT to "Светлая",
+                AppTheme.DARK to "Тёмная",
+            ).forEach { (mode, label) ->
+                FilterChip(
+                    selected = AppTheme.mode == mode,
+                    onClick = { AppTheme.set(context, mode) },
+                    label = { Text(label) },
+                )
+            }
+        }
     }
 }
 

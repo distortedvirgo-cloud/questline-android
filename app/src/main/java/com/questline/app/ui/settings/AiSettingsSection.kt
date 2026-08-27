@@ -47,7 +47,7 @@ fun AiSettingsSection() {
         Text("AI-коуч (необязательно)", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Вставь API-ключ подписки OpenCode Zen (opencode.ai/zen) — модель GLM уже настроена. Ключ хранится только на телефоне; без ключа приложение полностью работает офлайн. Подойдёт любой OpenAI-совместимый API.",
+            "Вставь API-ключ подписки OpenCode Zen — шлюз и модель (glm-5.3-flash) уже настроены. Если менял раньше — нажми «Сбросить» и вставь ключ заново. Ключ хранится только на телефоне; без ключа приложение полностью работает офлайн.",
             style = MaterialTheme.typography.bodySmall,
             color = Q.inkMuted,
         )

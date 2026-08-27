@@ -209,6 +209,10 @@ fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) { animated = true }
     val fraction by animateFloatAsState(if (animated) 1f else 0f, tween(400), label = "radar")
 
+    // Цвета захватываются до DrawScope: внутри Canvas @Composable недоступны.
+    val borderColor = Q.border
+    val accentColor = Q.accent
+
     Canvas(modifier) {
         val keys = listOf("PHYSICS", "MIND", "MONEY", "SOCIAL", "DISCIPLINE")
         val maxXp = (keyXp.values.maxOrNull() ?: 10).coerceAtLeast(1)
@@ -229,7 +233,7 @@ fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
                 if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
             }
             path.close()
-            drawPath(path, Q.border, style = Stroke(width = 1.dp.toPx()))
+            drawPath(path, borderColor, style = Stroke(width = 1.dp.toPx()))
         }
 
         // Данные
@@ -240,13 +244,13 @@ fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
             if (i == 0) dataPath.moveTo(p.x, p.y) else dataPath.lineTo(p.x, p.y)
         }
         dataPath.close()
-        drawPath(dataPath, Q.accent.copy(alpha = 0.22f))
-        drawPath(dataPath, Q.accent, style = Stroke(width = 2.dp.toPx()))
+        drawPath(dataPath, accentColor.copy(alpha = 0.22f))
+        drawPath(dataPath, accentColor, style = Stroke(width = 2.dp.toPx()))
 
         // Вершины
         keys.forEachIndexed { i, k ->
             val v = ((keyXp[k] ?: 0).toFloat() / maxXp).coerceIn(0.05f, 1f) * fraction
-            drawCircle(Q.accent, radius = 5f, center = point(i, v))
+            drawCircle(accentColor, radius = 5f, center = point(i, v))
         }
     }
 }
