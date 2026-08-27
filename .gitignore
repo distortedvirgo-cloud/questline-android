@@ -4,3 +4,6 @@ local.properties
 .idea/
 *.iml
 .cxx/
+
+# Ключ подписи не публикуется; в CI декодируется из секрета
+app/signing/

@@ -23,6 +23,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.QUESTLINE_KEYSTORE_B64 }}
+        run: |
+          mkdir -p app/signing
+          echo "$KEYSTORE_B64" | base64 --decode > app/signing/questline.keystore
+
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 

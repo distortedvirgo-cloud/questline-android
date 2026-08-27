@@ -14,8 +14,25 @@ android {
         applicationId = "com.questline.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.6"
+    }
+
+    signingConfigs {
+        // Стабильный ключ релизов: без него каждый CI-раннер подписывает своим
+        // временным debug-ключом и апдейты не встают поверх старых версий.
+        create("stable") {
+            storeFile = file("signing/questline.keystore")
+            storePassword = System.getenv("KS_STORE_PASS") ?: "questline"
+            keyAlias = "questline"
+            keyPassword = System.getenv("KS_KEY_PASS") ?: "questline"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("stable")
+        }
     }
 
     compileOptions {
