@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,7 +50,11 @@ import kotlinx.coroutines.launch
 
 /** Настройки: доступ к уведомлениям банков + обновления с GitHub. */
 @Composable
-fun SettingsScreen(onBack: () -> Unit = {}) {
+fun SettingsScreen(
+    onBack: () -> Unit = {},
+    onOpenMirror: () -> Unit = {},
+    onOpenShop: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(Dispatchers.Main) }
 
@@ -56,6 +62,10 @@ fun SettingsScreen(onBack: () -> Unit = {}) {
     var listenerGranted by remember {
         mutableStateOf(hasNotificationListenerAccess(context))
     }
+
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { /* результат не критичен: без SMS работает канал пушей */ }
 
     // Апдейтер
     var updateStatus by remember { mutableStateOf("Проверить обновления") }
@@ -77,16 +87,28 @@ fun SettingsScreen(onBack: () -> Unit = {}) {
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
-        // --- Банковские пуши ---
+        com.questline.app.ui.settings.AiSettingsSection()
+        Spacer(Modifier.height(12.dp))
+        com.questline.app.ui.settings.BackupSection()
+        Spacer(Modifier.height(12.dp))
+
+        SectionCard(title = "Ещё") {
+            TextButton(onClick = onOpenMirror) { Text("🪞 Зеркало недели") }
+            TextButton(onClick = onOpenShop) { Text("🎨 Магазин тем") }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // --- Банковские пуши и SMS ---
         SectionCard(title = "Автоучёт расходов") {
             Text(
-                "Приложение читает push-уведомления банков и само подставляет траты во вкладку «Деньги». Вы подтверждаете каждую операцию вручную. Данные не покидают телефон.",
+                "Приложение читает уведомления и SMS только от банков — конкретно Сбербанк (пуш-уведомления приложения) и номер 900. Прочие SMS и уведомления не открываются. Операции попадают во вкладку «Деньги», каждую подтверждаешь вручную. Данные не покидают телефон.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Q.inkMuted,
             )
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Разбирать банковские пуши", modifier = Modifier.weight(1f))
+                Text("Разбирать пуши и SMS Сбера", modifier = Modifier.weight(1f))
                 Switch(
                     checked = bankEnabled,
                     onCheckedChange = { checked ->
@@ -98,6 +120,14 @@ fun SettingsScreen(onBack: () -> Unit = {}) {
                         } else {
                             BankPrefs.setEnabled(context, checked)
                             bankEnabled = checked
+                            if (checked) {
+                                smsPermissionLauncher.launch(
+                                    arrayOf(
+                                        android.Manifest.permission.RECEIVE_SMS,
+                                        android.Manifest.permission.READ_SMS,
+                                    ),
+                                )
+                            }
                         }
                     },
                     colors = SwitchDefaults.colors(

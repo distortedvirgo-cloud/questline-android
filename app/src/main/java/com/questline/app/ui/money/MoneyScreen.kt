@@ -113,6 +113,10 @@ fun MoneyScreen() {
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
         ) {
+            // Текущий баланс (указывается пользователем, дальше считается сам)
+            BalanceCard(AppRepo.get(context))
+            Spacer(Modifier.height(12.dp))
+
             // Шапка месяца ‹ ›
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.shiftMonth(-1) }) {

@@ -47,8 +47,16 @@ private val LightScheme = lightColorScheme(
 
 @Composable
 fun QuestlineTheme(content: @Composable () -> Unit) {
+    // Живая тема: accent меняется из магазина косметики (ThemeState.selectedIndex)
+    val accent = com.questline.app.ui.shop.ThemeState.accent
+    val scheme = if (accent == Q.accent) LightScheme else LightScheme.copy(
+        primary = accent,
+        onPrimary = Color.White,
+        primaryContainer = accent.copy(alpha = 0.14f),
+        onPrimaryContainer = accent,
+    )
     MaterialTheme(
-        colorScheme = LightScheme,
+        colorScheme = scheme,
         content = content,
     )
 }

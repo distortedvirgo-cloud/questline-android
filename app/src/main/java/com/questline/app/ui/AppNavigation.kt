@@ -22,8 +22,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.questline.app.data.AppRepo
 import com.questline.app.ui.money.MoneyScreen
+import com.questline.app.ui.mirror.WeekMirrorScreen
 import com.questline.app.ui.profile.ProfileScreen
 import com.questline.app.ui.settings.SettingsScreen
+import com.questline.app.ui.shop.ShopScreen
 import com.questline.app.ui.tasks.TasksScreen
 import com.questline.app.ui.today.TodayScreen
 
@@ -49,7 +51,8 @@ fun QuestlineApp() {
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
-            if (currentRoute != "settings") {
+            val hideBar = currentRoute in setOf("settings", "mirror", "shop")
+            if (!hideBar) {
                 NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
                 tabs.forEach { tab ->
                     NavigationBarItem(
@@ -85,7 +88,17 @@ fun QuestlineApp() {
                 )
             }
             composable("settings") {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenMirror = { navController.navigate("mirror") },
+                    onOpenShop = { navController.navigate("shop") },
+                )
+            }
+            composable("mirror") {
+                WeekMirrorScreen(onBack = { navController.popBackStack() })
+            }
+            composable("shop") {
+                ShopScreen(onBack = { navController.popBackStack() })
             }
         }
     }

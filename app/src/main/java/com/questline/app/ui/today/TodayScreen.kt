@@ -170,6 +170,8 @@ fun TodayScreen() {
     // Генерация авто-квестов дня + первичный расчёт уровня/стрика.
     LaunchedEffect(Unit) {
         QuestGenerator.ensureTodayQuests(repo, AppRepo.todayEpochDay)
+        com.questline.app.domain.BudgetQuestEngine.ensureBudgetQuests(repo, AppRepo.todayEpochDay)
+        com.questline.app.domain.BudgetQuestEngine.resolveBudgetQuests(repo, AppRepo.todayEpochDay)
         vm.loadProgressOnce()
     }
 

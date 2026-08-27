@@ -29,6 +29,14 @@ interface CategoryDao {
 
     @Query("UPDATE categories SET budgetMonthlyMinor = :budget WHERE id = :id")
     suspend fun setBudget(id: Long, budget: Long?)
+
+    // --- T-15: бэкап ---
+    /** Для восстановления: REPLACE вместо IGNORE существующего insertAll (имя иное из-за конфликта сигнатур) */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllReplace(categories: List<Category>)
+
+    @Query("DELETE FROM categories")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -53,6 +61,16 @@ interface TaskDao {
 
     @Query("DELETE FROM tasks WHERE id = :id")
     suspend fun delete(id: Long)
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tasks: List<Task>)
+
+    @Query("SELECT * FROM tasks")
+    suspend fun all(): List<Task>
+
+    @Query("DELETE FROM tasks")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -78,6 +96,16 @@ interface QuestDao {
 
     @Query("SELECT * FROM quests WHERE templateId = :templateId AND budgetPeriodKey = :periodKey AND budgetCategoryId = :categoryId LIMIT 1")
     suspend fun findBudgetQuest(templateId: String, periodKey: String, categoryId: Long): Quest?
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(quests: List<Quest>)
+
+    @Query("SELECT * FROM quests")
+    suspend fun all(): List<Quest>
+
+    @Query("DELETE FROM quests")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -99,6 +127,20 @@ interface TxnDao {
 
     @Query("SELECT COALESCE(SUM(amountMinor),0) FROM transactions WHERE type='EXPENSE' AND categoryId=:categoryId AND epochDay BETWEEN :fromDay AND :toDay")
     fun observeSpentInCategory(categoryId: Long, fromDay: Long, toDay: Long): Flow<Long>
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(txns: List<Txn>)
+
+    @Query("SELECT * FROM transactions")
+    suspend fun all(): List<Txn>
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearAll()
+
+    /** Чистое движение (доходы − расходы) по времени создания — для карты текущего баланса */
+    @Query("SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amountMinor ELSE -amountMinor END),0) FROM transactions WHERE createdAtMillis >= :sinceMillis")
+    fun observeNetSince(sinceMillis: Long): kotlinx.coroutines.flow.Flow<Long>
 }
 
 @Dao
@@ -118,6 +160,16 @@ interface PendingTxnDao {
 
     @Query("DELETE FROM pending_txn WHERE status != 'PENDING' AND receivedMillis < :cutoffMillis")
     suspend fun cleanupOld(cutoffMillis: Long)
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(pending: List<PendingTxn>)
+
+    @Query("SELECT * FROM pending_txn")
+    suspend fun all(): List<PendingTxn>
+
+    @Query("DELETE FROM pending_txn")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -130,6 +182,16 @@ interface GoalDao {
 
     @Query("SELECT * FROM goals WHERE status != 'ARCHIVED' ORDER BY id DESC")
     fun observeActive(): Flow<List<Goal>>
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(goals: List<Goal>)
+
+    @Query("SELECT * FROM goals")
+    suspend fun all(): List<Goal>
+
+    @Query("DELETE FROM goals")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -145,4 +207,14 @@ interface CoinsLedgerDao {
 
     @Query("SELECT * FROM coins_ledger ORDER BY createdAtMillis DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<CoinsLedger>>
+
+    // --- T-15: бэкап ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<CoinsLedger>)
+
+    @Query("SELECT * FROM coins_ledger")
+    suspend fun all(): List<CoinsLedger>
+
+    @Query("DELETE FROM coins_ledger")
+    suspend fun clearAll()
 }
