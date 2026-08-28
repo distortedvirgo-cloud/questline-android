@@ -47,8 +47,9 @@ class AppRepo private constructor(context: Context) {
      */
     suspend fun completeTaskAsQuest(task: Task) {
         val now = System.currentTimeMillis()
-        if (task.repeatDaily && task.lastDoneEpochDay == todayEpochDay) return
-        val updated = if (task.repeatDaily) {
+        val repeats = task.repeatIntervalDays > 0
+        if (repeats && task.lastDoneEpochDay == todayEpochDay) return
+        val updated = if (repeats) {
             task.copy(lastDoneEpochDay = todayEpochDay)
         } else {
             task.copy(done = true, doneAtMillis = now)

@@ -40,7 +40,10 @@ data class Task(
     val title: String,
     val notes: String = "",
     val categoryId: Long? = null,       // QUEST-категория
+    /** Легаси-флаг: для новых записей инвариант repeatDaily == (repeatIntervalDays >= 1) */
     val repeatDaily: Boolean = false,
+    /** 0 = не повторяется, 1 = ежедневно, N = каждые N дней */
+    val repeatIntervalDays: Int = 0,
     val dueEpochDay: Long? = null,
     val complexity: String = "M",       // S | M | L (босс)
     val done: Boolean = false,

@@ -97,11 +97,12 @@ fun TaskCard(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    if (task.repeatDaily) {
+                    if (task.repeatIntervalDays > 0) {
                         Spacer(Modifier.size(8.dp))
                         Icon(
                             imageVector = Icons.Filled.Repeat,
-                            contentDescription = "Ежедневно",
+                            contentDescription = if (task.repeatIntervalDays == 1) "Ежедневно"
+                            else "Раз в ${task.repeatIntervalDays} дн.",
                             tint = Q.inkMuted,
                             modifier = Modifier.size(13.dp),
                         )

@@ -92,9 +92,15 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
         .map { list -> list.filter { (it.source == "AUTO" && it.dateCreatedEpochDay == todayEpochDay) || it.source == "BUDGET" } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Задачи на сегодня — максимум 5 строк. */
+    /** Задачи на сегодня — максимум 5 строк; повторяющиеся в «отдыхе» скрыты. */
     val tasksToday: StateFlow<List<Task>> = repo.tasks.observeForToday(todayEpochDay)
-        .map { list -> list.take(MAX_TODAY_TASKS) }
+        .map { list ->
+            list.filterNot { task ->
+                val last = task.lastDoneEpochDay
+                task.repeatIntervalDays > 0 && last != null &&
+                    todayEpochDay < last + task.repeatIntervalDays
+            }.take(MAX_TODAY_TASKS)
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Общий баланс монет. */
@@ -138,7 +144,7 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
             if (checked) {
                 repo.completeTaskAsQuest(task)
                 _progress.value = buildProgressSnapshot()
-            } else if (task.repeatDaily) {
+            } else if (task.repeatIntervalDays > 0) {
                 repo.tasks.update(task.copy(lastDoneEpochDay = null))
             } else {
                 repo.tasks.update(task.copy(done = false, doneAtMillis = null))
@@ -375,7 +381,7 @@ private fun TasksSection(tasks: List<Task>, vm: TodayViewModel) {
 
 @Composable
 private fun TaskRow(task: Task, vm: TodayViewModel) {
-    val checked = task.repeatDaily && task.lastDoneEpochDay == AppRepo.todayEpochDay
+    val checked = task.repeatIntervalDays > 0 && task.lastDoneEpochDay == AppRepo.todayEpochDay
     Row(modifier = Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = checked, onCheckedChange = { vm.toggleTask(task, it) })
         Text(

@@ -78,7 +78,7 @@ fun TasksScreen() {
                     items(tasks, key = { it.id }) { task ->
                         val emoji = categories.firstOrNull { it.id == task.categoryId }?.emoji
                         val checked = task.done ||
-                            (task.repeatDaily && task.lastDoneEpochDay == vm.todayEpochDay)
+                            (task.repeatIntervalDays > 0 && task.lastDoneEpochDay == vm.todayEpochDay)
                         TaskCard(
                             task = task,
                             emoji = emoji?.takeIf { it.isNotEmpty() },
@@ -115,8 +115,8 @@ fun TasksScreen() {
             editing = editTarget,
             categories = categories,
             onDismiss = { editorOpen = false },
-            onSave = { title, complexity, categoryId, due, repeatDaily ->
-                vm.save(editTarget?.id, title, complexity, categoryId, due, repeatDaily)
+            onSave = { title, complexity, categoryId, due, repeatIntervalDays ->
+                vm.save(editTarget?.id, title, complexity, categoryId, due, repeatIntervalDays)
                 editorOpen = false
             },
         )

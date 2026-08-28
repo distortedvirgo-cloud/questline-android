@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -33,7 +34,15 @@ class TasksViewModel(private val repo: AppRepo) : ViewModel() {
     val inboxTasks: StateFlow<List<Task>> = repo.tasks.observeOpen()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Повторяющиеся в «отдыхе» между повторами не показываем */
     val todayTasks: StateFlow<List<Task>> = repo.tasks.observeForToday(todayEpochDay)
+        .map { list ->
+            list.filterNot { task ->
+                val last = task.lastDoneEpochDay
+                task.repeatIntervalDays > 0 && last != null &&
+                    todayEpochDay < last + task.repeatIntervalDays
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val questCategories: StateFlow<List<Category>> = repo.categories.observeQuest()
@@ -46,7 +55,7 @@ class TasksViewModel(private val repo: AppRepo) : ViewModel() {
         complexity: String,
         categoryId: Long?,
         dueEpochDay: Long?,
-        repeatDaily: Boolean,
+        repeatIntervalDays: Int,
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
@@ -55,7 +64,8 @@ class TasksViewModel(private val repo: AppRepo) : ViewModel() {
                     Task(
                         title = title.trim(),
                         categoryId = categoryId,
-                        repeatDaily = repeatDaily,
+                        repeatDaily = repeatIntervalDays > 0,
+                        repeatIntervalDays = repeatIntervalDays,
                         dueEpochDay = dueEpochDay,
                         complexity = complexity,
                         createdAtMillis = System.currentTimeMillis(),
@@ -67,7 +77,8 @@ class TasksViewModel(private val repo: AppRepo) : ViewModel() {
                     existing.copy(
                         title = title.trim(),
                         categoryId = categoryId,
-                        repeatDaily = repeatDaily,
+                        repeatDaily = repeatIntervalDays > 0,
+                        repeatIntervalDays = repeatIntervalDays,
                         dueEpochDay = dueEpochDay,
                         complexity = complexity,
                     ),
@@ -81,7 +92,7 @@ class TasksViewModel(private val repo: AppRepo) : ViewModel() {
      * Повторяющаяся не закрывается навсегда, а отмечается последним днём выполнения.
      */
     fun complete(task: Task) {
-        if (task.repeatDaily && task.lastDoneEpochDay == todayEpochDay) return // уже отмечена сегодня
+        if (task.repeatIntervalDays > 0 && task.lastDoneEpochDay == todayEpochDay) return // уже отмечена сегодня
         viewModelScope.launch { repo.completeTaskAsQuest(task) }
     }
 
