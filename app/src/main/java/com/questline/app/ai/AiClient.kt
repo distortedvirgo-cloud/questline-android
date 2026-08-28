@@ -66,7 +66,7 @@ object AiClient {
             val body = JSONObject().apply {
                 put("model", model)
                 put("temperature", 0.8)
-                put("max_tokens", 500)
+                put("max_tokens", 2000)
                 put("messages", JSONArray().apply {
                     messages.forEach { (role, text) ->
                         put(JSONObject().put("role", role).put("content", text))

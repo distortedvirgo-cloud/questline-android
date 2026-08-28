@@ -146,6 +146,10 @@ interface TxnDao {
     @Query("SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amountMinor ELSE -amountMinor END),0) FROM transactions WHERE createdAtMillis >= :sinceMillis")
     fun observeNetSince(sinceMillis: Long): kotlinx.coroutines.flow.Flow<Long>
 
+    /** Есть ли уже транзакция, подтверждённая из этой карточки инбокса (защита от дублей). */
+    @Query("SELECT COUNT(*) FROM transactions WHERE pendingId = :pendingId")
+    suspend fun countByPendingId(pendingId: Long): Int
+
     /** Чистое движение по конкретной карте с момента якоря её абсолютного остатка. */
     @Query("SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amountMinor ELSE -amountMinor END),0) FROM transactions WHERE accountLast4 = :last4 AND createdAtMillis >= :sinceMillis")
     fun observeNetForAccount(last4: String, sinceMillis: Long): kotlinx.coroutines.flow.Flow<Long>

@@ -59,8 +59,9 @@ fun PendingInboxSection(repo: AppRepo) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var autoEnabled by remember { mutableStateOf(AutoProcessPrefs.isEnabled(context)) }
-    // Карточки, уже отправленные в пакетный AI-разбор: не слать повторно
-    val aiAttempted = remember { HashSet<Long>() }
+    // Число попыток пакетного AI-разбора на карточку (модель иногда пропускает
+    // пункты — даём вторую волну, но не спамим бесконечно).
+    val aiAttempted = remember { HashMap<Long, Int>() }
     val accounts = remember { AccountsPrefs.list(context) }
 
     if (pending.isEmpty()) {
@@ -98,18 +99,25 @@ fun PendingInboxSection(repo: AppRepo) {
     val pendingKey = pending.joinToString("|") { "${it.id}:${it.status}" }
     LaunchedEffect(autoEnabled, pendingKey, categories) {
         if (!autoEnabled || pending.isEmpty()) return@LaunchedEffect
-        val fresh = pending.filter { it.id !in aiAttempted && it.type != "RECONCILE" }
+        val fresh = pending.filter { it.type != "RECONCILE" && (aiAttempted[it.id] ?: 0) < 2 }
         if (fresh.isEmpty()) return@LaunchedEffect
-        fresh.forEach { aiAttempted.add(it.id) }
+        fresh.forEach { aiAttempted[it.id] = (aiAttempted[it.id] ?: 0) + 1 }
+        android.util.Log.d("AiAuto", "batch: ${fresh.size} cards, enabled=$autoEnabled")
         val decisions = aiAutoProcess(context, fresh, categories)
+        android.util.Log.d("AiAuto", "decisions: " + decisions.joinToString { "${it.pendingId}->${it.action}:${it.categoryId}" })
         if (decisions.isEmpty()) return@LaunchedEffect
         decisions.forEach { d ->
+            android.util.Log.d("AiAuto", "apply ${d.pendingId}: ${d.action}")
             val item = fresh.firstOrNull { it.id == d.pendingId } ?: return@forEach
             when (d.action) {
                 "confirm" -> {
                     val categoryId = d.categoryId
                     if (categoryId != null) {
                         val last4 = AccountsPrefs.findByLast4(context, item.text)?.last4
+                        // Процесс мог умереть между insert и setStatus — тогда txn уже
+                        // есть и повторная вставка дала бы дубль.
+                        val alreadyThere = repo.txns.countByPendingId(item.id) > 0
+                        if (!alreadyThere) {
                         repo.txns.insert(
                             Txn(
                                 amountMinor = item.amountMinor,
@@ -124,6 +132,7 @@ fun PendingInboxSection(repo: AppRepo) {
                                 createdAtMillis = System.currentTimeMillis(),
                             ),
                         )
+                        }
                         repo.pending.setStatus(item.id, "CONFIRMED")
                         detectAndUpdateBalance(context, repo, item)
                     }

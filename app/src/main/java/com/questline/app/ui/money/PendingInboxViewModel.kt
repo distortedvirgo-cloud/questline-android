@@ -26,6 +26,10 @@ class PendingInboxViewModel(private val repo: AppRepo) : ViewModel() {
     /** Подтвердить: создаём Txn на сегодня в выбранную категорию. */
     fun confirm(item: PendingTxn, categoryId: Long, accountLast4: String? = null) {
         viewModelScope.launch {
+            if (repo.txns.countByPendingId(item.id) > 0) {
+                repo.pending.setStatus(item.id, "CONFIRMED")
+                return@launch
+            }
             repo.txns.insert(
                 Txn(
                     amountMinor = item.amountMinor,
