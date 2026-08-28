@@ -96,25 +96,28 @@ fun MoneyAccountsHeader(repo: AppRepo) {
         accounts = AccountsPrefs.list(context)
     }
 
+    // Карты свёрнуты по умолчанию: сводка не должна съедать экран с тратами.
+    var cardsExpanded by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Строка баланса ≤56dp: «Баланс: <сумма> ₽ ✎»
+        // Одна строка ≤44dp: «Баланс: <сумма> ✎   💳N/＋»
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 52.dp)
+                .heightIn(min = 40.dp, max = 44.dp)
                 .clip(ACCOUNT_SHAPE)
                 .background(Q.accentSoft)
                 .border(1.dp, Q.accent.copy(alpha = 0.35f), ACCOUNT_SHAPE)
                 .clickable { showBalanceEdit = true }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "Баланс:",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = Q.inkMuted,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
             if (!legacySet && accounts.isEmpty()) {
                 Text(
                     text = "укажи, сколько у тебя сейчас денег",
@@ -135,21 +138,42 @@ fun MoneyAccountsHeader(repo: AppRepo) {
                 Icons.Filled.Edit,
                 contentDescription = "Изменить баланс",
                 tint = Q.accent,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
+            Spacer(Modifier.width(8.dp))
+            // Триггер карт: «+» если карт нет, «💳 N ›/⌄» если есть. Клик не редактирует баланс.
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Q.surface)
+                    .border(1.dp, Q.accent.copy(alpha = 0.35f), RoundedCornerShape(50))
+                    .clickable { cardsExpanded = !cardsExpanded }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = if (accounts.isEmpty()) "+ Карта"
+                    else "💳 ${accounts.size} " + if (cardsExpanded) "⌄" else "›",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Q.accent,
+                    maxLines = 1,
+                )
+            }
         }
 
-        Spacer(Modifier.height(6.dp))
-
-        AccountsBar(
-            accounts = accounts,
-            onEdit = { account -> editing = account },
-            onDelete = { account ->
-                AccountsPrefs.save(context, AccountsPrefs.list(context).filterNot { it.id == account.id })
-                reloadAccounts()
-            },
-            onAdd = { showAddCard = true },
-        )
+        androidx.compose.animation.AnimatedVisibility(visible = cardsExpanded) {
+            Column {
+                Spacer(Modifier.height(6.dp))
+                AccountsBar(
+                    accounts = accounts,
+                    onEdit = { account -> editing = account },
+                    onDelete = { account ->
+                        AccountsPrefs.save(context, AccountsPrefs.list(context).filterNot { it.id == account.id })
+                        reloadAccounts()
+                    },
+                    onAdd = { showAddCard = true },
+                )
+            }
+        }
     }
 
     if (showBalanceEdit) {

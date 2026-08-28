@@ -1,6 +1,7 @@
 package com.questline.app.ui.money
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +80,7 @@ private enum class MoneyTab(val label: String) {
     OVERVIEW("Обзор"),
     BUDGETS("Бюджеты"),
     GOALS("Копилки"),
+    AI("✨ AI"),
 }
 
 /**
@@ -134,40 +136,26 @@ fun MoneyScreen() {
 
             Spacer(Modifier.height(8.dp))
 
-            // Баланс месяца: доходы − расходы
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-            ) {
-                Text(
-                    text = "Баланс месяца",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = MoneyFormat.text(balance.balanceMinor),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontFamily = FontFamily.Monospace,
-                )
-                Text(
-                    text = "Доходы ${MoneyFormat.text(balance.incomeMinor)} · Расходы ${MoneyFormat.text(balance.expenseMinor)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // Итог месяца одной строкой — сводка не должна съедать контент
+            Text(
+                text = monthSummaryLine(balance),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             // Инбокс банковских пушей — только на вкладке Обзор текущего месяца
             if (currentTab == MoneyTab.OVERVIEW) {
                 PendingInboxSection(AppRepo.get(context))
             }
 
-            // Табы-чипы секций
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Табы-чипы секций; скролл, чтобы на узких экранах не терялся «✨ AI»
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
                 MoneyTab.entries.forEach { tab ->
                     FilterChip(
                         selected = currentTab == tab,
@@ -179,14 +167,12 @@ fun MoneyScreen() {
 
             Spacer(Modifier.height(12.dp))
 
-            AiMonthAnalysisSection(month)
-            Spacer(Modifier.height(12.dp))
-
             // weight, а не fillMaxSize: Box занимает остаток после инбокса,
             // иначе длинный инбокс выталкивается за экран без скролла
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 when (currentTab) {
                     MoneyTab.OVERVIEW -> OverviewSection(month, Modifier.fillMaxSize())
+                    MoneyTab.AI -> AiMonthTabContent(month, Modifier.fillMaxSize())
                     MoneyTab.BUDGETS -> BudgetsSection(month, Modifier.fillMaxSize())
                     MoneyTab.GOALS -> GoalsSection(Modifier.fillMaxSize())
                 }
@@ -208,4 +194,13 @@ internal fun SectionColumn(modifier: Modifier = Modifier, content: @Composable (
         content()
         Spacer(Modifier.height(88.dp)) // воздух над FAB
     }
+}
+
+/** «Доходы 100 ₽ · Расходы 88 ₽ → +12 ₽» — итог месяца одной строкой. */
+private fun monthSummaryLine(balance: MonthBalance): String {
+    val net = balance.incomeMinor - balance.expenseMinor
+    val netText = if (net > 0) "+" + MoneyFormat.text(net)
+        else if (net < 0) "−" + MoneyFormat.text(-net)
+        else "0 ₽"
+    return "Доходы ${MoneyFormat.text(balance.incomeMinor)} · Расходы ${MoneyFormat.text(balance.expenseMinor)} → $netText"
 }

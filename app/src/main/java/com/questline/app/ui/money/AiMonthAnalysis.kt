@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -154,6 +156,37 @@ class AiMonthAnalysisViewModel(private val repo: AppRepo) : ViewModel() {
  * Результат кэшируется в remember(monthKey) — смена месяца сбрасывает секцию;
  * повторный клик по кнопке перегенерирует разбор.
  */
+
+/**
+ * Контент таба «✨ AI»: если ключ не настроен — приглашение вместо пустоты,
+ * иначе обычная секция разбора месяца.
+ */
+@Composable
+fun AiMonthTabContent(month: LocalDate, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    if (!AiPrefs.isConfigured(context)) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        ) {
+            Text(
+                "✨ AI-анализ работает после вставки API-ключа.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Настройки → AI-коуч → вставь ключ OpenCode. Ключ хранится только на телефоне.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        AiMonthAnalysisSection(month, modifier)
+    }
+}
+
 @Composable
 fun AiMonthAnalysisSection(month: LocalDate, modifier: Modifier = Modifier) {
     val context = LocalContext.current
