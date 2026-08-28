@@ -1,5 +1,6 @@
 package com.questline.app.ui.money
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,7 @@ import com.questline.app.data.AppRepo
 import com.questline.app.ui.theme.Q
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 private val ACCOUNT_SHAPE = RoundedCornerShape(14.dp)
@@ -79,6 +84,13 @@ fun MoneyAccountsHeader(repo: AppRepo) {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Инбокс меняет балансы карт вживую (подтверждение, сверка, перевод своей) —
+    // перечитываем карты при любом изменении очереди pending.
+    val pendingTick by repo.pending.observePending().collectAsStateWithLifecycle(emptyList())
+    LaunchedEffect(pendingTick.map { it.id to it.status }) {
+        accounts = AccountsPrefs.list(context)
     }
 
     // Legacy-баланс без карт: указанное значение + чистый поток с якоря
@@ -202,8 +214,19 @@ fun MoneyAccountsHeader(repo: AppRepo) {
         CardBalanceDialog(
             account = account,
             onDismiss = { editing = null },
-            onSave = { newMinor ->
+            onSave = { newMinor, transferTarget ->
                 AccountsPrefs.upsertBalance(context, account.id, newMinor, System.currentTimeMillis())
+                // Перевод между своими: деньги, ушедшие с источника, приходят на
+                // цель и наоборот — разница переносится на выбранную карту.
+                if (transferTarget != null) {
+                    val moved = account.balanceMinor - newMinor
+                    AccountsPrefs.upsertBalance(
+                        context,
+                        transferTarget.id,
+                        transferTarget.balanceMinor + moved,
+                        System.currentTimeMillis(),
+                    )
+                }
                 reloadAccounts()
                 editing = null
             },
@@ -296,16 +319,25 @@ private fun AccountChip(account: Account, onClick: () -> Unit, onLongClick: () -
     }
 }
 
-/** Диалог правки баланса карты: ввод рублей, ✕ в заголовке — удалить карту. */
+/** Диалог правки баланса карты: ввод рублей, ✕ в заголовке — удалить карту. Есть режим «Перевод своей». */
 @Composable
 private fun CardBalanceDialog(
     account: Account,
     onDismiss: () -> Unit,
-    onSave: (Long) -> Unit,
+    onSave: (newMinor: Long, transferTarget: Account?) -> Unit,
     onDelete: () -> Unit,
 ) {
+    val context = LocalContext.current
     var text by remember(account.id) { mutableStateOf(rublesInput(account.balanceMinor)) }
     val parsed = MoneyFormat.parseRubles(text)
+
+    // Другие карты для режима «Перевод своей» (пусто — режим не показываем вовсе).
+    val others = remember(account.id) {
+        AccountsPrefs.list(context).filter { it.id != account.id }
+    }
+    var transferMode by remember(account.id) { mutableStateOf(false) }
+    var targetId by remember(account.id) { mutableStateOf<Long?>(null) }
+    val target = others.firstOrNull { it.id == targetId }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -347,15 +379,87 @@ private fun CardBalanceDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Сумма, ₽") },
                 )
+                if (others.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectableChip(
+                            text = "Обновить",
+                            selected = !transferMode,
+                            onClick = { transferMode = false },
+                            modifier = Modifier.weight(1f),
+                        )
+                        SelectableChip(
+                            text = "Перевод своей",
+                            selected = transferMode,
+                            onClick = { transferMode = true },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                if (transferMode && others.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    others.forEach { candidate ->
+                        SelectableChip(
+                            text = "\uD83D\uDCB3 ••${candidate.last4}, остаток " +
+                                MoneyFormat.text(candidate.balanceMinor),
+                            selected = targetId == candidate.id,
+                            onClick = {
+                                targetId = if (targetId == candidate.id) null else candidate.id
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    Text(
+                        "Разница между старым и новым остатком уйдёт на выбранную карту (или с неё), обе сойдутся.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Q.inkMuted,
+                    )
+                }
             }
         },
         confirmButton = {
-            TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }) { Text("Сохранить") }
+            TextButton(
+                enabled = parsed != null && !(transferMode && target == null),
+                onClick = {
+                    parsed?.let { minor -> onSave(minor, if (transferMode) target else null) }
+                },
+            ) { Text("Сохранить") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }
         },
     )
+}
+
+/**
+ * Локальная копия SelectableChip из ui/tasks/AddTaskDialog.kt (тот internal и живёт
+ * в другом пакете): нейтральная пилюля выбора, выбранная — surfaceAlt без второго цвета.
+ */
+@Composable
+private fun SelectableChip(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    textPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) Q.surfaceAlt else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, Q.border),
+        modifier = modifier,
+    ) {
+        Text(
+            text = text,
+            style = textStyle,
+            color = if (selected) Q.ink else Q.inkMuted,
+            maxLines = 1,
+            modifier = Modifier.padding(textPadding),
+        )
+    }
 }
 
 /** Диалог добавления карты/счёта: имя (необязательно), 4 цифры (обязательно), баланс (необязательно). */
