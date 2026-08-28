@@ -58,6 +58,9 @@ fun PendingInboxSection(repo: AppRepo) {
     val categories by vm.financeCategories.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var autoEnabled by remember { mutableStateOf(AutoProcessPrefs.isEnabled(context)) }
+    // Карточки, уже отправленные в пакетный AI-разбор: не слать повторно
+    val aiAttempted = remember { HashSet<Long>() }
     val accounts = remember { AccountsPrefs.list(context) }
 
     if (pending.isEmpty()) {
@@ -90,15 +93,66 @@ fun PendingInboxSection(repo: AppRepo) {
         return
     }
 
+    // Пакетный AI-разбор новых карточек: один запрос, хронология с временем.
+    // Перезапускается только при изменении состава/статусов очереди.
+    val pendingKey = pending.joinToString("|") { "${it.id}:${it.status}" }
+    LaunchedEffect(autoEnabled, pendingKey, categories) {
+        if (!autoEnabled || pending.isEmpty()) return@LaunchedEffect
+        val fresh = pending.filter { it.id !in aiAttempted && it.type != "RECONCILE" }
+        if (fresh.isEmpty()) return@LaunchedEffect
+        fresh.forEach { aiAttempted.add(it.id) }
+        val decisions = aiAutoProcess(context, fresh, categories)
+        if (decisions.isEmpty()) return@LaunchedEffect
+        decisions.forEach { d ->
+            val item = fresh.firstOrNull { it.id == d.pendingId } ?: return@forEach
+            when (d.action) {
+                "confirm" -> {
+                    val categoryId = d.categoryId
+                    if (categoryId != null) {
+                        val last4 = AccountsPrefs.findByLast4(context, item.text)?.last4
+                        repo.txns.insert(
+                            Txn(
+                                amountMinor = item.amountMinor,
+                                type = item.type,
+                                categoryId = categoryId,
+                                epochDay = item.epochDay,
+                                note = listOf(item.title.ifBlank { "Из уведомления" }, d.note)
+                                    .filterNotNull().joinToString(" · "),
+                                source = "BANK_PUSH",
+                                pendingId = item.id,
+                                accountLast4 = last4,
+                                createdAtMillis = System.currentTimeMillis(),
+                            ),
+                        )
+                        repo.pending.setStatus(item.id, "CONFIRMED")
+                        detectAndUpdateBalance(context, repo, item)
+                    }
+                }
+                "discard" -> repo.pending.setStatus(item.id, "DISCARDED")
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp),
     ) {
-        Text(
-            "Входящие операции",
-            style = MaterialTheme.typography.titleMedium,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Входящие операции",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            FilterChip(
+                selected = autoEnabled,
+                onClick = {
+                    AutoProcessPrefs.setEnabled(context, !autoEnabled)
+                    autoEnabled = !autoEnabled
+                },
+                label = { Text(if (autoEnabled) "✨ Авто" else "Авто выкл") },
+            )
+        }
         Spacer(Modifier.height(6.dp))
         pending.forEach { item ->
             if (item.type == "RECONCILE") {
