@@ -103,7 +103,19 @@ fun MoneyAccountsHeader(repo: AppRepo) {
         }
     }
 
-    val totalMinor = if (accounts.isEmpty()) legacyMinor else accounts.sumOf { it.balanceMinor }
+    // Динамический остаток карты = абсолют с якоря + чистый поток её операций
+    // (createdAtMillis >= anchorMillis). upsertBalance ставит якорь ПОСЛЕ вставки Txn
+    // (детект сверки), поэтому подтверждённая операция в net не попадает — двойного
+    // учёта нет; пуши без «Баланс:» и ручные записи якорь не двигают — двигают баланс.
+    val netsById = mutableMapOf<Long, Long>()
+    accounts.forEach { acc ->
+        val net by repo.txns.observeNetForAccount(acc.last4, acc.anchorMillis)
+            .collectAsStateWithLifecycle(initialValue = 0L)
+        netsById[acc.id] = net
+    }
+
+    val totalMinor = if (accounts.isEmpty()) legacyMinor
+    else accounts.sumOf { it.balanceMinor + (netsById[it.id] ?: 0L) }
 
     fun reloadAccounts() {
         accounts = AccountsPrefs.list(context)
@@ -186,6 +198,7 @@ fun MoneyAccountsHeader(repo: AppRepo) {
                 Spacer(Modifier.height(6.dp))
                 AccountsBar(
                     accounts = accounts,
+                    netsById = netsById,
                     onEdit = { account -> editing = account },
                     onDelete = { account ->
                         AccountsPrefs.save(context, AccountsPrefs.list(context).filterNot { it.id == account.id })
@@ -265,6 +278,8 @@ fun AccountsBar(
     onDelete: (Account) -> Unit,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
+    /** id карты → чистое движение её операций с якоря (динамическая часть баланса). */
+    netsById: Map<Long, Long> = emptyMap(),
 ) {
     LazyRow(
         modifier = modifier
@@ -276,6 +291,7 @@ fun AccountsBar(
         items(accounts, key = { it.id }) { account ->
             AccountChip(
                 account = account,
+                displayedMinor = account.balanceMinor + (netsById[account.id] ?: 0L),
                 onClick = { onEdit(account) },
                 onLongClick = { onDelete(account) },
             )
@@ -292,7 +308,12 @@ fun AccountsBar(
 /** Чип карты: «💳 ••5129  548,04 ₽» (с именем, если задано). Тап — правка, долгий тап — удалить. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AccountChip(account: Account, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun AccountChip(
+    account: Account,
+    displayedMinor: Long,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -311,7 +332,7 @@ private fun AccountChip(account: Account, onClick: () -> Unit, onLongClick: () -
                 append("••")
                 append(account.last4)
                 append("  ")
-                append(MoneyFormat.text(account.balanceMinor))
+                append(MoneyFormat.text(displayedMinor))
             },
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1,

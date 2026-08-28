@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,6 +117,8 @@ fun PendingInboxSection(repo: AppRepo) {
                     categories = categories,
                     onConfirm = { categoryId ->
                         scope.launch {
+                            // Атрибуция карте-источнику — вычисляем ДО вставки Txn.
+                            val last4 = AccountsPrefs.findByLast4(context, item.text)?.last4
                             if (item.type == "INCOME") {
                                 // Доход подтверждается без пикера: категория уже выбрана в карточке.
                                 // Вставляем напрямую, чтобы порядок был строго «сначала Txn,
@@ -132,18 +135,18 @@ fun PendingInboxSection(repo: AppRepo) {
                                         note = item.title.ifBlank { "Из уведомления" },
                                         source = "BANK_PUSH",
                                         pendingId = item.id,
+                                        accountLast4 = last4,
                                         createdAtMillis = System.currentTimeMillis(),
                                     ),
                                 )
                                 repo.pending.setStatus(item.id, "CONFIRMED")
                             } else {
-                                vm.confirm(item, categoryId)
+                                vm.confirm(item, categoryId, last4)
                             }
                             val unexplained = detectAndUpdateBalance(context, repo, item)
                             if (unexplained != null &&
                                 pending.none { it.type == "RECONCILE" && it.text == item.text }
                             ) {
-                                val last4 = AccountsPrefs.findByLast4(context, item.text)?.last4
                                 if (last4 != null) {
                                     repo.pending.insert(
                                         PendingTxn(
@@ -203,6 +206,7 @@ private fun detectAndUpdateBalance(
     return if (abs(unexplained) >= 100 && expected != 0L) unexplained else null
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PendingCard(
     item: PendingTxn,
@@ -211,11 +215,20 @@ private fun PendingCard(
     onDiscard: () -> Unit,
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    val isIncome = item.type == "INCOME"
-    // Доход не спрашивает категорию: первая INCOME-категория, иначе любая финансовая (kind != QUEST).
-    val incomeCategoryId = remember(categories) {
-        categories.firstOrNull { it.isIncome }?.id ?: categories.firstOrNull()?.id
+    val context = LocalContext.current
+    // AI-категория подбирается один раз на карточку; без ключа остаётся null —
+    // карточка работает по-старому.
+    var aiCategoryId by remember(item.id) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(item.id) {
+        val raw = listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(" ")
+        aiCategoryId = aiSuggestCategoryId(context, raw, categories)
     }
+    val isIncome = item.type == "INCOME"
+    // Доход не спрашивает категорию: AI-подбор, иначе первая INCOME-категория.
+    val incomeCategoryId = remember(categories, aiCategoryId) {
+        aiCategoryId ?: categories.firstOrNull { it.isIncome }?.id ?: categories.firstOrNull()?.id
+    }
+    val aiCategoryName = aiCategoryId?.let { id -> categories.firstOrNull { it.id == id }?.name }
     val time = remember(item.receivedMillis) {
         Instant.ofEpochMilli(item.receivedMillis).atZone(ZoneId.systemDefault())
             .format(DateTimeFormatter.ofPattern("d MMM, HH:mm"))
@@ -252,12 +265,16 @@ private fun PendingCard(
             maxLines = 2,
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (isIncome) {
                 TextButton(
                     enabled = incomeCategoryId != null,
                     onClick = { incomeCategoryId?.let(onConfirm) },
                 ) { Text("Подтвердить доход") }
+            } else if (aiCategoryId != null) {
+                // Категория подобрана ИИ: подтверждение одним тапом, «Своя…» — ручной пикер.
+                TextButton(onClick = { aiCategoryId?.let(onConfirm) }) { Text("✨ $aiCategoryName") }
+                TextButton(onClick = { showPicker = true }) { Text("Своя…", color = Q.inkMuted) }
             } else {
                 TextButton(onClick = { showPicker = true }) { Text("Подтвердить") }
             }
@@ -396,6 +413,7 @@ private fun ReconcileCard(
                                         note = "Сверка ••" + sourceLast4,
                                         source = "BANK_PUSH",
                                         pendingId = item.id,
+                                        accountLast4 = sourceLast4.ifEmpty { null },
                                         createdAtMillis = System.currentTimeMillis(),
                                     ),
                                 )

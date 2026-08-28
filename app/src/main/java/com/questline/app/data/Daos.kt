@@ -145,6 +145,10 @@ interface TxnDao {
     /** Чистое движение (доходы − расходы) по времени создания — для карты текущего баланса */
     @Query("SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amountMinor ELSE -amountMinor END),0) FROM transactions WHERE createdAtMillis >= :sinceMillis")
     fun observeNetSince(sinceMillis: Long): kotlinx.coroutines.flow.Flow<Long>
+
+    /** Чистое движение по конкретной карте с момента якоря её абсолютного остатка. */
+    @Query("SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amountMinor ELSE -amountMinor END),0) FROM transactions WHERE accountLast4 = :last4 AND createdAtMillis >= :sinceMillis")
+    fun observeNetForAccount(last4: String, sinceMillis: Long): kotlinx.coroutines.flow.Flow<Long>
 }
 
 @Dao

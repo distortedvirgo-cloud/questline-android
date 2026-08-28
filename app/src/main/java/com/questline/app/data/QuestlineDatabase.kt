@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Category::class, Task::class, Quest::class,
         Txn::class, PendingTxn::class, Goal::class, CoinsLedger::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class QuestlineDatabase : RoomDatabase() {
@@ -35,6 +35,13 @@ abstract class QuestlineDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 → v3: атрибуция транзакции карте-источнику («••5129» из AccountsPrefs) */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN accountLast4 TEXT")
+            }
+        }
+
         fun get(context: Context): QuestlineDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -42,7 +49,7 @@ abstract class QuestlineDatabase : RoomDatabase() {
                     QuestlineDatabase::class.java,
                     "questline.db",
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

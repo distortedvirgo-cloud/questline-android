@@ -24,7 +24,7 @@ class PendingInboxViewModel(private val repo: AppRepo) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Подтвердить: создаём Txn на сегодня в выбранную категорию. */
-    fun confirm(item: PendingTxn, categoryId: Long) {
+    fun confirm(item: PendingTxn, categoryId: Long, accountLast4: String? = null) {
         viewModelScope.launch {
             repo.txns.insert(
                 Txn(
@@ -35,6 +35,7 @@ class PendingInboxViewModel(private val repo: AppRepo) : ViewModel() {
                     note = item.title.ifBlank { "Из уведомления" },
                     source = "BANK_PUSH",
                     pendingId = item.id,
+                    accountLast4 = accountLast4,
                     createdAtMillis = System.currentTimeMillis(),
                 ),
             )

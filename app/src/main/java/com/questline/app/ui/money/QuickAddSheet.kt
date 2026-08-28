@@ -47,7 +47,14 @@ class QuickAddViewModel(private val repo: AppRepo) : ViewModel() {
     val categories = repo.categories.observeFinance()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun save(type: String, categoryId: Long, amountMinor: Long, note: String, onDone: () -> Unit) {
+    fun save(
+        type: String,
+        categoryId: Long,
+        amountMinor: Long,
+        note: String,
+        accountLast4: String?,
+        onDone: () -> Unit,
+    ) {
         viewModelScope.launch {
             repo.txns.insert(
                 Txn(
@@ -57,6 +64,7 @@ class QuickAddViewModel(private val repo: AppRepo) : ViewModel() {
                     epochDay = AppRepo.todayEpochDay,
                     note = note.trim(),
                     source = "MANUAL",
+                    accountLast4 = accountLast4,
                     createdAtMillis = System.currentTimeMillis(),
                 ),
             )
@@ -81,6 +89,9 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
     var amountText by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     var noteText by remember { mutableStateOf("") }
+    val accounts = remember { AccountsPrefs.list(context) }
+    // Одна карта — атрибутируем автоматически; иначе выбор чипом (необязательный).
+    var accountLast4 by remember { mutableStateOf(accounts.singleOrNull()?.last4) }
 
     val amountMinor = MoneyFormat.parseRubles(amountText)
     val canSave = selectedCategoryId != null && amountMinor != null && amountMinor > 0L
@@ -142,6 +153,29 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
                 }
             }
 
+            // Привязка к карте: показывается, только если карт не ровно одна
+            // (тогда запись относится к единственной карте автоматически).
+            if (accounts.size != 1) {
+                Text("Карта", style = MaterialTheme.typography.labelMedium)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    FilterChip(
+                        selected = accountLast4 == null,
+                        onClick = { accountLast4 = null },
+                        label = { Text("Без карты") },
+                    )
+                    accounts.forEach { card ->
+                        FilterChip(
+                            selected = accountLast4 == card.last4,
+                            onClick = { accountLast4 = card.last4 },
+                            label = { Text("💳 ••${card.last4}") },
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
@@ -158,6 +192,7 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
                         categoryId = selectedCategoryId!!,
                         amountMinor = amountMinor!!,
                         note = noteText,
+                        accountLast4 = accountLast4,
                         onDone = onDismissRequest,
                     )
                 },

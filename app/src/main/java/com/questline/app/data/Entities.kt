@@ -93,6 +93,8 @@ data class Txn(
     val source: String = "MANUAL",
     /** Связь с записью пуш-инбокса */
     val pendingId: Long? = null,
+    /** ••NNNN карты из AccountsPrefs; null = не привязана */
+    val accountLast4: String? = null,
     val isPlanned: Boolean = false,
     val createdAtMillis: Long,
 )
