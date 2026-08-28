@@ -219,9 +219,15 @@ private fun PendingCard(
     // AI-категория подбирается один раз на карточку; без ключа остаётся null —
     // карточка работает по-старому.
     var aiCategoryId by remember(item.id) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(item.id) {
-        val raw = listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(" ")
-        aiCategoryId = aiSuggestCategoryId(context, raw, categories)
+    var aiTried by remember(item.id) { mutableStateOf(false) }
+    // Категории грузятся из БД асинхронно: на первом composition список ещё пуст,
+    // поэтому эффект перезапускается по categories, а aiTried не даёт дублировать запрос.
+    LaunchedEffect(item.id, categories) {
+        if (!aiTried && categories.isNotEmpty()) {
+            aiTried = true
+            val raw = listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(" ")
+            aiCategoryId = aiSuggestCategoryId(context, raw, categories)
+        }
     }
     val isIncome = item.type == "INCOME"
     // Доход не спрашивает категорию: AI-подбор, иначе первая INCOME-категория.

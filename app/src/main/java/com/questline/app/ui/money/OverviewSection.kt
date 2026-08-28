@@ -104,6 +104,9 @@ fun OverviewSection(month: LocalDate, modifier: Modifier = Modifier) {
     }
 
     SectionColumn(modifier = modifier) {
+        // Неподтверждённые пуш-операции: верх страницы, листаются вместе со всем «Обзором»
+        PendingInboxSection(AppRepo.get(context))
+        Spacer(Modifier.height(4.dp))
         if (totalExpense <= 0L) {
             Text(
                 text = "В этом месяце расходов пока нет",
