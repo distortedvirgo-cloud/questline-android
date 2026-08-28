@@ -54,10 +54,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 private val ACCOUNT_SHAPE = RoundedCornerShape(14.dp)
 
 /**
- * Компактный верх вкладки «Деньги»: строка «Баланс: <сумма> ✎» (≤56dp) и чипы
- * карт/счетов. Карты нет — сумма считается по-старому (указанное значение +
- * чистый поток операций с якоря); карты заведены — верхняя сумма равна сумме
- * их абсолютных остатков.
+ * Компактный верх вкладки «Деньги»: строка «Баланс: <сумма>» (≤44dp) и чипы
+ * карт/счетов. Карт нет — тап открывает диалог «Сколько денег сейчас?» и сумма
+ * считается по-старому (указанное значение + чистый поток операций с якоря);
+ * карты заведены — общий баланс равен сумме их остатков и отдельно не правится,
+ * тап по строке раскрывает карты (правится остаток каждой).
  */
 @Composable
 fun MoneyAccountsHeader(repo: AppRepo) {
@@ -108,7 +109,12 @@ fun MoneyAccountsHeader(repo: AppRepo) {
                 .clip(ACCOUNT_SHAPE)
                 .background(Q.accentSoft)
                 .border(1.dp, Q.accent.copy(alpha = 0.35f), ACCOUNT_SHAPE)
-                .clickable { showBalanceEdit = true }
+                .clickable {
+                    // С картами общий баланс — сумма остатков, правится только
+                    // через карты; без карт — диалог ручного ввода.
+                    if (accounts.isEmpty()) showBalanceEdit = true
+                    else cardsExpanded = !cardsExpanded
+                }
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -134,13 +140,16 @@ fun MoneyAccountsHeader(repo: AppRepo) {
                 )
             }
             Spacer(Modifier.weight(1f))
-            Icon(
-                Icons.Filled.Edit,
-                contentDescription = "Изменить баланс",
-                tint = Q.accent,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
+            // Карандаш уместен только там, где тап реально правит сумму вручную.
+            if (accounts.isEmpty()) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Указать баланс",
+                    tint = Q.accent,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             // Триггер карт: «+» если карт нет, «💳 N ›/⌄» если есть. Клик не редактирует баланс.
             Box(
                 modifier = Modifier
