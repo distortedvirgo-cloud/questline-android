@@ -1,8 +1,6 @@
 package com.questline.app.ui.money
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -34,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -76,26 +72,30 @@ class MoneyViewModel(private val repo: AppRepo) : ViewModel() {
     }
 }
 
+/** «Операции» и «Статистика» — чипы-маршруты: контент живёт на отдельных экранах */
 private enum class MoneyTab(val label: String) {
-    OVERVIEW("Обзор"),
-    BUDGETS("Бюджеты"),
+    PLAN("План"),
+    OPERATIONS("Операции"),
+    STATS("Статистика"),
     GOALS("Копилки"),
     AI("✨ AI"),
 }
 
 /**
- * Финансы: месяц стрелками ‹ ›, баланс месяца и три секции табами-чипами.
+ * Финансы: месяц стрелками ‹ › и секции табом-чипами v3
+ * [План · Операции · Статистика · Копилки · ✨ AI]. «Операции»/«Статистика»
+ * открывают отдельные экраны (T-09/T-10), «План» — дефолтная секция.
  * FAB «+» — быстрый ввод транзакции.
  */
 @Composable
-fun MoneyScreen() {
+fun MoneyScreen(onOpenOperations: () -> Unit = {}, onOpenStats: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: MoneyViewModel = viewModel { MoneyViewModel(AppRepo.get(context)) }
 
     val month by vm.month.collectAsState()
     val balance by vm.balance.collectAsState()
 
-    var currentTab by remember { mutableStateOf(MoneyTab.OVERVIEW) }
+    var currentTab by remember { mutableStateOf(MoneyTab.PLAN) }
     var showQuickAdd by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -134,19 +134,8 @@ fun MoneyScreen() {
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Итог месяца одной строкой — сводка не должна съедать контент
-            Text(
-                text = monthSummaryLine(balance),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            // Инбокс банковских пушей — только на вкладке Обзор текущего месяца
             // Табы-чипы секций; скролл, чтобы на узких экранах не терялся «✨ AI»
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -155,7 +144,13 @@ fun MoneyScreen() {
                 MoneyTab.entries.forEach { tab ->
                     FilterChip(
                         selected = currentTab == tab,
-                        onClick = { currentTab = tab },
+                        onClick = {
+                            when (tab) {
+                                MoneyTab.OPERATIONS -> onOpenOperations()
+                                MoneyTab.STATS -> onOpenStats()
+                                else -> currentTab = tab
+                            }
+                        },
                         label = { Text(tab.label) },
                     )
                 }
@@ -163,14 +158,15 @@ fun MoneyScreen() {
 
             Spacer(Modifier.height(12.dp))
 
-            // weight, а не fillMaxSize: Box занимает остаток после инбокса,
-            // иначе длинный инбокс выталкивается за экран без скролла
+            // weight, а не fillMaxSize: Box занимает остаток после чипов,
+            // иначе длинный контент выталкивается за экран без скролла
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 when (currentTab) {
-                    MoneyTab.OVERVIEW -> OverviewSection(month, Modifier.fillMaxSize())
-                    MoneyTab.AI -> AiMonthTabContent(month, Modifier.fillMaxSize())
-                    MoneyTab.BUDGETS -> BudgetsSection(month, Modifier.fillMaxSize())
+                    MoneyTab.PLAN -> PlanMonthSection(month, balance, Modifier.fillMaxSize())
                     MoneyTab.GOALS -> GoalsSection(Modifier.fillMaxSize())
+                    MoneyTab.AI -> AiMonthTabContent(month, Modifier.fillMaxSize())
+                    // «Операции»/«Статистика» — отдельные маршруты, здесь контента нет
+                    else -> Unit
                 }
             }
         }
@@ -190,13 +186,4 @@ internal fun SectionColumn(modifier: Modifier = Modifier, content: @Composable (
         content()
         Spacer(Modifier.height(88.dp)) // воздух над FAB
     }
-}
-
-/** «Доходы 100 ₽ · Расходы 88 ₽ → +12 ₽» — итог месяца одной строкой. */
-private fun monthSummaryLine(balance: MonthBalance): String {
-    val net = balance.incomeMinor - balance.expenseMinor
-    val netText = if (net > 0) "+" + MoneyFormat.text(net)
-        else if (net < 0) "−" + MoneyFormat.text(-net)
-        else "0 ₽"
-    return "Доходы ${MoneyFormat.text(balance.incomeMinor)} · Расходы ${MoneyFormat.text(balance.expenseMinor)} → $netText"
 }

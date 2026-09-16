@@ -19,9 +19,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.questline.app.ui.theme.Q
 
-/** Радар характеристик (Canvas), центр = слабость к краю сила */
+/** Радар характеристик (Canvas), центр = слабость к краю сила.
+ *  maxValue — абсолютная шкала (например 100 для v3 характеристик, T-13);
+ *  null — нормировка по максимуму значений (поведение v2). */
 @Composable
-fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
+fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier, maxValue: Int? = null) {
     var animated by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { animated = true }
     val fraction by animateFloatAsState(if (animated) 1f else 0f, tween(400), label = "radar")
@@ -32,7 +34,7 @@ fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
 
     Canvas(modifier) {
         val keys = listOf("PHYSICS", "MIND", "MONEY", "SOCIAL", "DISCIPLINE")
-        val maxXp = (keyXp.values.maxOrNull() ?: 10).coerceAtLeast(1)
+        val maxXp = maxValue ?: (keyXp.values.maxOrNull() ?: 10).coerceAtLeast(1)
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = minOf(size.width, size.height) / 2f - 40f
 

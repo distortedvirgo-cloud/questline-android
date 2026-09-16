@@ -2,11 +2,12 @@ package com.questline.app.ui.today
 
 /* Главный экран «Сегодня» v3 — план дня одним скроллом (T-06).
  * Секции сверху вниз: утро-блок (дата/приветствие, уровень/XP-шкала, «Прогресс
- * дня: N/M», стики), квест дня (карточки v2 с конфетти), совет дня (плейсхолдер
- * под T-12), привычки дня (чеки через repo.checkHabit, XP-полёт, чип заморозки),
- * задачи сегодня с быстрым добавлением, мини-деньги. Компоненты секций — в
- * Today*.kt, состояние — в TodayViewModel.kt. Вехи стрика — полноэкранное
- * празднование MilestoneCelebration (T-07).
+ * дня: N/M», стики, мини-радар характеристик T-13), квест дня (карточки v2 с
+ * конфетти), совет дня (rule-движок T-12), привычки дня (чеки через
+ * repo.checkHabit, XP-полёт, чип заморозки), задачи сегодня с быстрым
+ * добавлением, мини-деньги. Компоненты секций — в Today*.kt, состояние — в
+ * TodayViewModel.kt. Вехи стрика — полноэкранное празднование
+ * MilestoneCelebration (T-07).
  */
 
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,7 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
     val habits by vm.habits.collectAsStateWithLifecycle()
     val checksToday by vm.habitChecksToday.collectAsStateWithLifecycle()
     val streaks by vm.habitStreaks.collectAsStateWithLifecycle()
+    val characteristics by vm.characteristics.collectAsStateWithLifecycle()
     val questCategories by vm.questCategories.collectAsStateWithLifecycle()
     val freezeOffers by vm.freezeOfferDays.collectAsStateWithLifecycle()
     val milestone by vm.milestone.collectAsStateWithLifecycle()
@@ -91,6 +93,8 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
                 StatCard(Modifier.weight(1f), emoji = "🔥", value = "${progress?.streakDays ?: 0} дней")
                 StatCard(Modifier.weight(1f), emoji = "🪙", value = "$coins монет")
             }
+            Spacer(Modifier.height(10.dp))
+            MiniRadarCard(characteristics)
             Spacer(Modifier.height(20.dp))
 
             // Квест дня: карточки v2 (AUTO + BUDGET) с закрытием и конфетти.
@@ -106,8 +110,8 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
             }
             Spacer(Modifier.height(20.dp))
 
-            // Совет дня: тихий плейсхолдер, реальный движок приедет в T-12.
-            TodayAdviceCard()
+            // Совет дня: rule-советы NudgeEngine по данным пользователя (T-12).
+            TodayAdviceCard(onOpenMoney)
             Spacer(Modifier.height(20.dp))
 
             // Привычки дня: компактные ряды с чеками (+XP полёт, чип заморозки).

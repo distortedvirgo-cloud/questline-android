@@ -1,12 +1,10 @@
 package com.questline.app.ui.money
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,10 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -40,20 +35,9 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 
 /**
- * Нейтральная палитра срезов диаграммы: осветлённые роли STYLE.md.
+ * Нейтральная палитра срезов диаграммы — в DonutChart.kt.
  * colorIndex категории указывает на индекс в этом наборе.
  */
-private fun slicePalette(q: QColors) = listOf(
-    q.accent,          // 0
-    q.success,         // 1
-    q.warn,            // 2
-    q.coin,            // 3
-    q.danger,          // 4
-    Color(0xFF7B86E8), // 5 — светло-акцентный
-    Color(0xFF6699A8), // 6 — приглушённый морской
-    Color(0xFF8F8F8F), // 7 — нейтральный серый
-)
-
 @Composable
 fun colorForIndex(idx: Int): Color {
     val palette = slicePalette(questlineQ())
@@ -104,9 +88,7 @@ fun OverviewSection(month: LocalDate, modifier: Modifier = Modifier) {
     }
 
     SectionColumn(modifier = modifier) {
-        // Неподтверждённые пуш-операции: верх страницы, листаются вместе со всем «Обзором»
-        PendingInboxSection(AppRepo.get(context))
-        Spacer(Modifier.height(4.dp))
+        // Инбокс пушей переехал в «План» (PlanMonthSection, v3)
         if (totalExpense <= 0L) {
             Text(
                 text = "В этом месяце расходов пока нет",
@@ -140,46 +122,6 @@ fun OverviewSection(month: LocalDate, modifier: Modifier = Modifier) {
         txns.take(10).forEach { txn ->
             TxnRow(txn = txn, category = categories.firstOrNull { it.id == txn.categoryId })
             Spacer(Modifier.height(2.dp))
-        }
-    }
-}
-
-@Composable
-private fun DonutChart(slices: List<ExpenseSlice>, totalMinor: Long, modifier: Modifier = Modifier) {
-    val palette = slicePalette(questlineQ())
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val stroke = 34.dp.toPx()
-            val diameter = minOf(size.width, size.height) - stroke
-            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
-            val arcSize = Size(diameter, diameter)
-
-            var startAngle = -90f
-            slices.forEachIndexed { index, slice ->
-                val sweep = slice.amountMinor.toFloat() / totalMinor.toFloat() * 360f
-                drawArc(
-                    color = palette[(slice.category?.colorIndex ?: 7) % palette.size],
-                    startAngle = startAngle,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = stroke),
-                )
-                startAngle += sweep
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = MoneyFormat.text(totalMinor),
-                style = MaterialTheme.typography.headlineSmall,
-                fontFamily = FontFamily.Monospace,
-            )
-            Text(
-                text = "расходы",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

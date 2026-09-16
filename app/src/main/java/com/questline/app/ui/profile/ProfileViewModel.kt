@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.questline.app.data.AppRepo
 import com.questline.app.data.CoinsLedger
 import com.questline.app.domain.ProgressionEngine
+import com.questline.app.domain.habits.CharacteristicEngine
 import com.questline.app.domain.habits.HabitEngine
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -21,7 +22,8 @@ class ProfileViewModel(private val repo: AppRepo) : ViewModel() {
         val xpIntoLevel: Int = 0,
         val xpNeeded: ProgressionEngine.LevelState? = null,
         val coins: Int = 0,
-        val keyXp: Map<String, Int> = emptyMap(),
+        /** Характеристики v3 (T-13): 0..100 по PHYSICS/MIND/MONEY/SOCIAL/DISCIPLINE */
+        val characteristics: Map<String, Int> = emptyMap(),
         val recentCoins: List<CoinsLedger> = emptyList(),
         val streakMilestones: List<HabitStreakMilestones> = emptyList(),
     )
@@ -30,9 +32,19 @@ class ProfileViewModel(private val repo: AppRepo) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            // История квестов: XP-раскладка по характеристикам (уровень живёт в журнале)
-            val done = repo.quests.allDone()
-            state.value = state.value.copy(keyXp = ProgressionEngine.keyXp(done))
+            // Радар v3 (T-13): привычки (4 недели) первичны + квесты/задачи
+            // (XP за 30 дней) вторичны; живой Flow — обновляется на каждую отметку
+            combine(
+                repo.habits.observeActive(),
+                repo.habitChecks.observeAll(),
+                repo.quests.observeDone(),
+            ) { habits, checks, done ->
+                val windowStart = System.currentTimeMillis() - QUEST_WINDOW_DAYS * MILLIS_PER_DAY
+                val questKeyXp = ProgressionEngine.keyXp(done.filter { (it.closedAtMillis ?: 0L) >= windowStart })
+                CharacteristicEngine.characteristics(habits, checks, questKeyXp, AppRepo.todayEpochDay)
+            }.collect { chars ->
+                state.value = state.value.copy(characteristics = chars)
+            }
         }
         viewModelScope.launch {
             // Уровень — единый источник XpLedger (SPEC v3), обновляется на каждое начисление
@@ -88,3 +100,7 @@ data class HabitStreakMilestones(
 fun profileVmFactory(context: Context): ViewModelProvider.Factory = viewModelFactory {
     initializer { ProfileViewModel(AppRepo.get(context.applicationContext)) }
 }
+
+/** Окно квестовой активности для радара: 30 дней */
+private const val QUEST_WINDOW_DAYS = 30L
+private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000

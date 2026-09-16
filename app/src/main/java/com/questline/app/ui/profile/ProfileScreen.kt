@@ -78,23 +78,24 @@ fun ProfileScreen(
         Spacer(Modifier.height(8.dp))
 
         RadarChart(
-            keyXp = state.keyXp,
+            keyXp = state.characteristics,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(230.dp),
+            maxValue = 100,
         )
 
         Spacer(Modifier.height(14.dp))
 
         val keysOrdered = listOf("PHYSICS" to "💪 Физика", "MIND" to "🧠 Разум", "MONEY" to "💰 Деньги", "SOCIAL" to "💬 Харизма", "DISCIPLINE" to "🎯 Дисциплина")
         keysOrdered.forEach { (key, label) ->
-            val xp = state.keyXp[key] ?: 0
-            val maxOfAll = (state.keyXp.values.maxOrNull() ?: 1).coerceAtLeast(1)
-            val barFraction by animateFloatAsState(targetValue = xp.toFloat() / maxOfAll, animationSpec = tween(250), label = key)
+            val value = state.characteristics[key] ?: 0
+            // Шкала абсолютная 0..100: сила сферы, а не относительный XP из квестов
+            val barFraction by animateFloatAsState(targetValue = value / 100f, animationSpec = tween(250), label = key)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.weight(1f))
-                Text("$xp XP", style = MaterialTheme.typography.labelMedium, color = Q.inkMuted)
+                Text("$value%", style = MaterialTheme.typography.labelMedium, color = Q.inkMuted)
             }
             Box(
                 Modifier

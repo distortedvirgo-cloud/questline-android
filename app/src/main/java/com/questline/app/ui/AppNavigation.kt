@@ -25,6 +25,8 @@ import com.questline.app.data.AppRepo
 import com.questline.app.ui.assistant.AssistantScreen
 import com.questline.app.ui.habits.HabitsScreen
 import com.questline.app.ui.money.MoneyScreen
+import com.questline.app.ui.money.OperationsScreen
+import com.questline.app.ui.money.StatsScreen
 import com.questline.app.ui.mirror.WeekMirrorScreen
 import com.questline.app.ui.profile.ProfileScreen
 import com.questline.app.ui.settings.SettingsScreen
@@ -55,7 +57,7 @@ fun QuestlineApp() {
         // Фон схемы, не прозрачный: под ним окно активности может быть светлым
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant")
+            val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant", "operations", "stats")
             if (!hideBar) {
                 NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
                 tabs.forEach { tab ->
@@ -90,7 +92,14 @@ fun QuestlineApp() {
             }
             composable("habits") { HabitsScreen() }
             composable("tasks") { TasksScreen() }
-            composable("money") { MoneyScreen() }
+            composable("money") {
+                MoneyScreen(
+                    onOpenOperations = { navController.navigate("operations") },
+                    onOpenStats = { navController.navigate("stats") },
+                )
+            }
+            composable("operations") { OperationsScreen(onBack = { navController.popBackStack() }) }
+            composable("stats") { StatsScreen(onBack = { navController.popBackStack() }) }
             composable("profile") {
                 ProfileScreen(
                     onNavigateToMoney = { navController.navigate("money") },

@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.questline.app.data.AppRepo
+import com.questline.app.ui.profile.RadarChart
 import com.questline.app.ui.theme.Q
 import java.time.LocalDate
 import java.time.LocalTime
@@ -161,6 +162,27 @@ internal fun StatCard(modifier: Modifier = Modifier, emoji: String, value: Strin
             Text(emoji, fontSize = 16.sp)
             Spacer(Modifier.width(8.dp))
             Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** Мини-радар характеристик v3 (T-13): тот же RadarChart, компактный, без подписей. */
+@Composable
+internal fun MiniRadarCard(characteristics: Map<String, Int>) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = CARD_SHAPE, colors = cardColors()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                "Баланс характеристик",
+                style = MaterialTheme.typography.labelMedium,
+                color = Q.inkMuted,
+            )
+            RadarChart(
+                keyXp = characteristics,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                maxValue = 100,
+            )
         }
     }
 }

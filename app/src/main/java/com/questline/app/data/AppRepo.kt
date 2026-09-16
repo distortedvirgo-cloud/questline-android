@@ -34,6 +34,14 @@ class AppRepo internal constructor(private val db: QuestlineDatabase) {
     val habitChecks = db.habitCheckDao()
     val xpLedger = db.xpLedgerDao()
 
+    // ---------------- Транзакции: правка и удаление (T-09) ----------------
+
+    /** Правка существующей транзакции (сумма/тип/категория/дата/заметка) */
+    suspend fun updateTxn(txn: Txn) = txns.update(txn)
+
+    /** Удаление транзакции */
+    suspend fun deleteTxn(txn: Txn) = txns.delete(txn.id)
+
     suspend fun seedIfEmpty() {
         val existing = categories.all()
         if (existing.isNotEmpty()) return

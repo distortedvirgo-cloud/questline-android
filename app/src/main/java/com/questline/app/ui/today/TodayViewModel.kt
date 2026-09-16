@@ -16,6 +16,7 @@ import com.questline.app.data.Task
 import com.questline.app.data.habits.Habit
 import com.questline.app.data.habits.HabitCheck
 import com.questline.app.domain.ProgressionEngine
+import com.questline.app.domain.habits.CharacteristicEngine
 import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.habits.HabitMilestonePulse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +34,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
+
+/** Окно квестовой активности для радара характеристик: 30 дней */
+private const val QUEST_WINDOW_DAYS = 30L
+private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
 
 class TodayViewModel(private val repo: AppRepo) : ViewModel() {
 
@@ -79,6 +84,17 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
     /** Отметки привычек за сегодня. */
     val habitChecksToday: StateFlow<List<HabitCheck>> = repo.habitChecks.observeForDay(todayEpochDay)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Характеристики v3 (T-13): радар для мини-карточки, тот же расчёт, что в профиле. */
+    val characteristics: StateFlow<Map<String, Int>> = combine(
+        repo.habits.observeActive(),
+        repo.habitChecks.observeAll(),
+        repo.quests.observeDone(),
+    ) { habits, checks, done ->
+        val windowStart = System.currentTimeMillis() - QUEST_WINDOW_DAYS * MILLIS_PER_DAY
+        val questKeyXp = ProgressionEngine.keyXp(done.filter { (it.closedAtMillis ?: 0L) >= windowStart })
+        CharacteristicEngine.characteristics(habits, checks, questKeyXp, todayEpochDay)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     /** Стрик и день-кандидат на заморозку по каждой привычке (T-07). */
     private data class HabitProgress(val streak: Int, val freezeDay: Long?)

@@ -117,8 +117,14 @@ interface TxnDao {
     @Insert
     suspend fun insert(txn: Txn): Long
 
+    @Update
+    suspend fun update(txn: Txn)
+
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun byId(id: Long): Txn?
 
     @Query("SELECT * FROM transactions WHERE epochDay BETWEEN :fromDay AND :toDay ORDER BY epochDay DESC, id DESC")
     fun observeRange(fromDay: Long, toDay: Long): Flow<List<Txn>>
@@ -194,6 +200,10 @@ interface GoalDao {
 
     @Query("SELECT * FROM goals WHERE status != 'ARCHIVED' ORDER BY id DESC")
     fun observeActive(): Flow<List<Goal>>
+
+    /** T-11: полное удаление цели по подтверждению */
+    @Query("DELETE FROM goals WHERE id = :id")
+    suspend fun delete(id: Long)
 
     // --- T-15: бэкап ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
