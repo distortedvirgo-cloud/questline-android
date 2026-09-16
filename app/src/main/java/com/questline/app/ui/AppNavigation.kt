@@ -2,10 +2,9 @@ package com.questline.app.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +23,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.questline.app.data.AppRepo
 import com.questline.app.ui.assistant.AssistantScreen
+import com.questline.app.ui.habits.HabitsScreen
 import com.questline.app.ui.money.MoneyScreen
 import com.questline.app.ui.mirror.WeekMirrorScreen
 import com.questline.app.ui.profile.ProfileScreen
@@ -36,10 +36,9 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("today", "Сегодня", Icons.Filled.Today),
-    Tab("tasks", "Задачи", Icons.Filled.Checklist),
+    Tab("habits", "Привычки", Icons.Filled.Repeat),
     Tab("money", "Деньги", Icons.Filled.Savings),
     Tab("profile", "Я", Icons.Filled.Person),
-    Tab("assistant", "AI", Icons.Filled.SmartToy),
 )
 
 @Composable
@@ -56,7 +55,7 @@ fun QuestlineApp() {
         // Фон схемы, не прозрачный: под ним окно активности может быть светлым
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            val hideBar = currentRoute in setOf("settings", "mirror", "shop")
+            val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant")
             if (!hideBar) {
                 NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
                 tabs.forEach { tab ->
@@ -83,13 +82,22 @@ fun QuestlineApp() {
             startDestination = "today",
             modifier = Modifier.padding(padding),
         ) {
-            composable("today") { TodayScreen() }
+            composable("today") {
+                TodayScreen(
+                    onOpenAllTasks = { navController.navigate("tasks") },
+                    onOpenMoney = { navController.navigate("money") },
+                )
+            }
+            composable("habits") { HabitsScreen() }
             composable("tasks") { TasksScreen() }
             composable("money") { MoneyScreen() }
             composable("profile") {
                 ProfileScreen(
                     onNavigateToMoney = { navController.navigate("money") },
                     onNavigateToSettings = { navController.navigate("settings") },
+                    onNavigateToMirror = { navController.navigate("mirror") },
+                    onNavigateToShop = { navController.navigate("shop") },
+                    onNavigateToAssistant = { navController.navigate("assistant") },
                 )
             }
             composable("assistant") { AssistantScreen() }

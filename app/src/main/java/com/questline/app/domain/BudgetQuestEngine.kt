@@ -78,6 +78,8 @@ object BudgetQuestEngine {
                         quest.copy(status = "DONE", closedAtMillis = System.currentTimeMillis()),
                     )
                     repo.addCoins(quest.coinReward, "BUDGET_OK", quest.id)
+                    // Журнал XP: автозакрытие бюджетного квеста — запись BUDGET
+                    repo.awardXp("BUDGET", quest.id, quest.xpReward, todayEpochDay)
                 }
                 // Иначе квест остаётся открытым до следующей проверки
             }

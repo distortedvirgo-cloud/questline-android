@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.questline.app.ui.habits.HabitMilestonePulse
 import com.questline.app.ui.theme.Q
 import com.questline.app.ui.theme.questlineQ
 import kotlinx.coroutines.launch
@@ -85,6 +86,62 @@ class QuestBurstState(seed: Long) {
 @Composable
 fun rememberQuestBurstState(seed: Long = 0L): QuestBurstState =
     remember(seed) { QuestBurstState(seed = seed) }
+
+/** Полноэкранное празднование вехи стрика (T-07): конфетти из центра экрана
+ *  и строка «🔥 Серия 7 дней! +10 монет». Длительность — как у квестов
+ *  (BURST_MS = 700 мс), затем onFinished (VM гасит событие). */
+@Composable
+fun MilestoneCelebration(
+    event: HabitMilestonePulse?,
+    onFinished: () -> Unit,
+) {
+    if (event == null) return
+    val state = rememberQuestBurstState(seed = event.seq)
+    LaunchedEffect(event.seq) {
+        state.burst.snapTo(0f)
+        state.burst.animateTo(1f, tween(BURST_MS, easing = LinearEasing))
+        onFinished()
+    }
+
+    val q = questlineQ()
+    val palette = remember(q) { listOf(q.accent, q.success, q.coin, q.warn, q.danger) }
+    Box(Modifier.fillMaxSize()) {
+        Canvas(Modifier.matchParentSize()) {
+            val t = state.burst.value
+            if (t <= 0f) return@Canvas
+            val spread = SPREAD_DP.dp.toPx() * 2f // полноэкранный разлёт шире карточки
+            val gravity = GRAVITY_DP.dp.toPx()
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            state.particles.forEach { p ->
+                val distance = spread * p.speed * t
+                val x = cx + cos(p.angleRad) * distance
+                val y = cy + sin(p.angleRad) * distance + gravity * t * t
+                val s = p.sizeDp.dp.toPx()
+                val color = palette[p.colorIndex % palette.size]
+                val alpha = (1f - t).coerceIn(0f, 1f)
+                if (p.circle) {
+                    drawCircle(color, radius = s / 2f, center = Offset(x, y), alpha = alpha)
+                } else {
+                    rotate(degrees = p.spinDeg * t, pivot = Offset(x, y)) {
+                        drawRect(color, topLeft = Offset(x - s / 2f, y - s / 2f), size = Size(s, s), alpha = alpha)
+                    }
+                }
+            }
+        }
+        Text(
+            text = event.headline,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .graphicsLayer {
+                    alpha = (1f - state.burst.value * 0.9f).coerceIn(0f, 1f)
+                },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Q.accent,
+        )
+    }
+}
 
 /** Оверлей выполнения: конфетти из центра карточки + всплывающий «+XP».
  *  Пока visible, карточка снаружи гасится через state (cardScale/cardAlpha);

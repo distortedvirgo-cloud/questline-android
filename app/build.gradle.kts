@@ -14,8 +14,8 @@ android {
         applicationId = "com.questline.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "2.8"
+        versionCode = 19
+        versionName = "3.0-alpha"
     }
 
     signingConfigs {
@@ -47,6 +47,13 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric: локальные unit-тесты Room (in-memory) без эмулятора
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -65,4 +72,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
 }

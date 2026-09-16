@@ -70,7 +70,6 @@ suspend fun buildWeekStats(repo: AppRepo, todayEpochDay: Long): WeekStats {
     val weekFrom = todayEpochDay - 6
 
     var weekQuestsDone = 0
-    var weekXp = 0
     val byKey = HashMap<String, Int>()
     val closedDays = HashSet<Long>()
     for (quest in repo.quests.allDone()) {
@@ -78,10 +77,11 @@ suspend fun buildWeekStats(repo: AppRepo, todayEpochDay: Long): WeekStats {
         closedDays += day
         if (day in weekFrom..todayEpochDay) {
             weekQuestsDone++
-            weekXp += quest.xpReward
             byKey[quest.questKey] = (byKey[quest.questKey] ?: 0) + 1
         }
     }
+    // XP недели — из единого журнала (SPEC v3): квесты + привычки + прочие начисления
+    val weekXp = repo.xpLedger.sumBetween(weekFrom, todayEpochDay)
 
     val txns = repo.txns.observeRange(weekFrom, todayEpochDay).first()
     val expenses = txns.filter { it.type == "EXPENSE" }

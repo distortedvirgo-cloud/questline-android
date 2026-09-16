@@ -10,6 +10,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.questline.app.data.AppRepo
 import com.questline.app.data.CoinsLedger
 import com.questline.app.domain.ProgressionEngine
+import com.questline.app.domain.habits.HabitEngine
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class ProfileViewModel(private val repo: AppRepo) : ViewModel() {
@@ -21,21 +23,27 @@ class ProfileViewModel(private val repo: AppRepo) : ViewModel() {
         val coins: Int = 0,
         val keyXp: Map<String, Int> = emptyMap(),
         val recentCoins: List<CoinsLedger> = emptyList(),
+        val streakMilestones: List<HabitStreakMilestones> = emptyList(),
     )
 
     val state = mutableStateOf(State())
 
     init {
         viewModelScope.launch {
-            // История квестов загружается один раз (стрики/уровень статичны на сессию)
+            // История квестов: XP-раскладка по характеристикам (уровень живёт в журнале)
             val done = repo.quests.allDone()
-            val levelState = ProgressionEngine.levelFromTotal(ProgressionEngine.totalXp(done))
-            state.value = state.value.copy(
-                level = levelState.level,
-                xpIntoLevel = levelState.xpIntoLevel,
-                xpNeeded = levelState,
-                keyXp = ProgressionEngine.keyXp(done),
-            )
+            state.value = state.value.copy(keyXp = ProgressionEngine.keyXp(done))
+        }
+        viewModelScope.launch {
+            // Уровень — единый источник XpLedger (SPEC v3), обновляется на каждое начисление
+            repo.xpLedger.observeSumTotal().collect { total ->
+                val levelState = ProgressionEngine.levelFromTotal(total)
+                state.value = state.value.copy(
+                    level = levelState.level,
+                    xpIntoLevel = levelState.xpIntoLevel,
+                    xpNeeded = levelState,
+                )
+            }
         }
         viewModelScope.launch {
             repo.coins.observeTotalCoins().collect { total ->
@@ -47,7 +55,34 @@ class ProfileViewModel(private val repo: AppRepo) : ViewModel() {
                 state.value = state.value.copy(recentCoins = list)
             }
         }
+        viewModelScope.launch {
+            // Вехи стрика (T-07): считаются на лету из HabitEngine, без новых таблиц
+            combine(repo.habits.observeActive(), repo.habitChecks.observeAll()) { habits, checks ->
+                val byHabit = checks.groupBy { it.habitId }
+                habits.mapNotNull { habit ->
+                    val best = HabitEngine.streak(habit, byHabit[habit.id].orEmpty(), AppRepo.todayEpochDay).second
+                    if (best < HabitEngine.MILESTONE_DAYS.first()) return@mapNotNull null
+                    HabitStreakMilestones(
+                        emoji = habit.emoji,
+                        title = habit.title,
+                        best = best,
+                    )
+                }
+            }.collect { rows ->
+                state.value = state.value.copy(streakMilestones = rows)
+            }
+        }
     }
+}
+
+/** Строка «Вехи стрика» на «Я»: активная привычка с лучшей серией ≥ 7 */
+data class HabitStreakMilestones(
+    val emoji: String,
+    val title: String,
+    val best: Int,
+) {
+    /** Достигнутые вехи: 7/30/100 по лучшему стрику */
+    val achieved: List<Int> get() = HabitEngine.MILESTONE_DAYS.filter { best >= it }
 }
 
 fun profileVmFactory(context: Context): ViewModelProvider.Factory = viewModelFactory {

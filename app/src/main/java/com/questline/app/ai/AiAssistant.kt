@@ -29,7 +29,8 @@ object AiAssistant {
     suspend fun buildContext(repo: AppRepo): String {
         val today = AppRepo.todayEpochDay
         val done = repo.quests.allDone()
-        val level = ProgressionEngine.levelFromTotal(ProgressionEngine.totalXp(done))
+        // Уровень — единый источник XpLedger (SPEC v3)
+        val level = ProgressionEngine.levelFromTotal(repo.xpLedger.observeSumTotal().first())
         val closedDays = done.mapNotNull { q ->
             q.closedAtMillis?.let {
                 Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()

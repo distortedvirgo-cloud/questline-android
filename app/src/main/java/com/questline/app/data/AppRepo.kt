@@ -1,16 +1,28 @@
 package com.questline.app.data
 
 import android.content.Context
+import com.questline.app.data.habits.Habit
+import com.questline.app.data.habits.HabitCheck
+import com.questline.app.data.xp.XpLedger
 import com.questline.app.domain.ProgressionEngine
+import com.questline.app.domain.habits.HabitEngine
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
+/** Итог отметки привычки: XP за чек и веха стрика, если она пересечена (T-07) */
+data class HabitCheckResult(
+    val awardedXp: Int,
+    val milestone: Int? = null,
+)
+
 /**
  * Единый фасад над DAO. Категории сидируются при первом доступе.
- * Все деньги — minor units (копейки).
+ * Все деньги — minor units (копейки). Синглтон через [get]; для тестов
+ * есть вторичный конструктор над готовой (in-memory) базой.
  */
-class AppRepo private constructor(context: Context) {
-    private val db = QuestlineDatabase.get(context)
+class AppRepo internal constructor(private val db: QuestlineDatabase) {
+
+    constructor(context: Context) : this(QuestlineDatabase.get(context))
     val categories = db.categoryDao()
     val tasks = db.taskDao()
     val quests = db.questDao()
@@ -18,6 +30,9 @@ class AppRepo private constructor(context: Context) {
     val pending = db.pendingTxnDao()
     val goals = db.goalDao()
     val coins = db.coinsLedgerDao()
+    val habits = db.habitDao()
+    val habitChecks = db.habitCheckDao()
+    val xpLedger = db.xpLedgerDao()
 
     suspend fun seedIfEmpty() {
         val existing = categories.all()
@@ -35,10 +50,29 @@ class AppRepo private constructor(context: Context) {
         )
     }
 
+    /**
+     * Единая точка начисления XP (SPEC v3 «XP-экономика»): любая награда —
+     * запись в xp_ledger; уровень считается on-demand суммой журнала.
+     */
+    suspend fun awardXp(source: String, refId: Long?, delta: Int, epochDay: Long) {
+        xpLedger.insert(
+            XpLedger(
+                delta = delta,
+                source = source,
+                refId = refId,
+                epochDay = epochDay,
+                createdAtMillis = System.currentTimeMillis(),
+            ),
+        )
+    }
+
     /** Закрыть квест с наградой XP+монеты (xp применяет вызывающий VM к своего progress'у) */
     suspend fun completeQuest(quest: Quest) {
-        quests.update(quest.copy(status = "DONE", closedAtMillis = System.currentTimeMillis()))
+        val closedAt = System.currentTimeMillis()
+        quests.update(quest.copy(status = "DONE", closedAtMillis = closedAt))
         addCoins(quest.coinReward, "QUEST_DONE", quest.id)
+        // Журнал XP: каждое НОВОЕ закрытие — запись QUEST (backfill миграции покрывает только старые)
+        awardXp("QUEST", quest.id, quest.xpReward, todayEpochDay)
     }
 
     /**
@@ -73,10 +107,122 @@ class AppRepo private constructor(context: Context) {
             ),
         )
         addCoins(ProgressionEngine.coinsFor(task.complexity), "QUEST_DONE", questId)
+        // Журнал XP: новое закрытие задачи = запись TASK со ссылкой на созданный квест
+        awardXp("TASK", questId, ProgressionEngine.xpFor(task.complexity), todayEpochDay)
+    }
+
+    // ---------------- Привычки (T-04/T-05/T-07) ----------------
+
+    /**
+     * Отметка привычки за день (уникальная на пару habitId+день). Для
+     * количественных value — фактическое значение дня; XP по сложности
+     * начисляется один раз, когда отметка успешна (без цели — сразу,
+     * с целью — при достижении targetValue), с дневным капом 20 XP на все
+     * привычки суммарно. После успешного чека проверяется веха стрика
+     * 7/30/100 — разовый бонус монет + XP (T-07). Итог — [HabitCheckResult]:
+     * awardedXp — начисленный XP за отметку (0 — записана без награды),
+     * milestone — пересечённая веха (null — вехи нет).
+     */
+    suspend fun checkHabit(habit: Habit, epochDay: Long, value: Double? = null): HabitCheckResult {
+        val existing = habitChecks.byDay(habit.id, epochDay)
+        val checkId = existing?.id ?: habitChecks.insert(
+            HabitCheck(
+                habitId = habit.id,
+                epochDay = epochDay,
+                value = value,
+                createdAtMillis = System.currentTimeMillis(),
+            ),
+        )
+        if (existing != null && value != null && value != existing.value) {
+            habitChecks.updateValue(checkId, value)
+        }
+        val success = habit.targetValue == null || (value ?: existing?.value ?: 0.0) >= habit.targetValue
+        val awarded = if (!success || xpLedger.countByRef("HABIT", checkId) > 0) {
+            0
+        } else {
+            HabitEngine.habitXpTodayCapped(xpLedger.sumBySource(epochDay, "HABIT"), HabitEngine.xpForHabit(habit.complexity))
+        }
+        if (awarded > 0) awardXp("HABIT", checkId, awarded, epochDay)
+        // Веха проверяется при каждом успешном чеке (в т.ч. когда количественная
+        // привычка доросла до цели инкрементом): гвард по coins_ledger не даёт повтор.
+        val milestone = if (success) awardMilestone(habit, checkId, epochDay) else null
+        return HabitCheckResult(awardedXp = awarded, milestone = milestone)
+    }
+
+    /**
+     * Вехи стрика (T-07): при пересечении ровно отметки 7/30/100 — разовый
+     * бонус монет (+10/+50/+150, reason "MILESTONE", refId = habitId*1000+веха)
+     * и XP (5/10/20, source "MILESTONE", refId = id чека). Защита от повтора —
+     * CoinsLedgerDao.countByReasonRef: бонус только если записи ещё нет.
+     */
+    private suspend fun awardMilestone(habit: Habit, checkId: Long, epochDay: Long): Int? {
+        val checks = habitChecks.rangeForHabit(habit.id, habit.createdAt, epochDay)
+        val (current, _) = HabitEngine.streak(habit, checks, epochDay)
+        if (current !in HabitEngine.MILESTONE_DAYS) return null
+        val milestone = current
+        val refId = habit.id * 1000 + milestone
+        if (coins.countByReasonRef(REASON_MILESTONE, refId) > 0) return null
+        addCoins(HabitEngine.milestoneCoinBonus(milestone), REASON_MILESTONE, refId)
+        awardXp(REASON_MILESTONE, checkId, HabitEngine.milestoneXpBonus(milestone), epochDay)
+        return milestone
+    }
+
+    /**
+     * Платная заморозка пропущенного дня (T-07): цена [FREEZE_COST] монет,
+     * списание одной записью CoinsLedger (reason "HABIT_FREEZE", refId = habit.id).
+     * Условия: в этот день ещё нет чека/заморозки (иначе false) и день не в
+     * будущем (вчера или сегодня). Не хватает монет или день невалиден — false.
+     * Заморозка мостит день в стрике, не удлиняя его (HabitEngine).
+     */
+    suspend fun freezeHabitDay(habit: Habit, epochDay: Long): Boolean {
+        if (epochDay > todayEpochDay) return false
+        if (habitChecks.byDay(habit.id, epochDay) != null) return false
+        val balance = coins.totalCoins()
+        if (balance < FREEZE_COST) return false
+        habitChecks.insert(
+            HabitCheck(
+                habitId = habit.id,
+                epochDay = epochDay,
+                value = null,
+                createdAtMillis = System.currentTimeMillis(),
+                frozen = true,
+            ),
+        )
+        addCoins(-FREEZE_COST, REASON_FREEZE, habit.id)
+        return true
+    }
+
+    /** Снять отметку за день: удаляет чек и связанную запись XP из журнала. */
+    suspend fun uncheckHabit(habitId: Long, epochDay: Long) {
+        val check = habitChecks.byDay(habitId, epochDay) ?: return
+        habitChecks.deleteById(check.id)
+        xpLedger.deleteByRef("HABIT", check.id)
+    }
+
+    /** Создание (id == 0) или правка привычки. */
+    suspend fun upsertHabit(habit: Habit) {
+        if (habit.id == 0L) habits.insert(habit) else habits.update(habit)
+    }
+
+    /** Архивация: уходит из активных, отметки и стрик сохраняются. */
+    suspend fun archiveHabit(habit: Habit) {
+        habits.archive(habit.id, AppRepo.todayEpochDay)
+    }
+
+    /** Полное удаление вместе с отметками; журнал XP не трогаем — история уровня. */
+    suspend fun deleteHabit(habitId: Long) {
+        habitChecks.deleteForHabit(habitId)
+        habits.delete(habitId)
     }
 
     companion object {
         @Volatile private var instance: AppRepo? = null
+
+        const val REASON_MILESTONE = "MILESTONE"
+        const val REASON_FREEZE = "HABIT_FREEZE"
+
+        /** Цена платной заморозки дня, монет */
+        const val FREEZE_COST = 20
 
         fun get(context: Context): AppRepo =
             instance ?: synchronized(this) {

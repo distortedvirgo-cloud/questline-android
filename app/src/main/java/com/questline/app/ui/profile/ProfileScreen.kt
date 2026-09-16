@@ -2,10 +2,8 @@ package com.questline.app.ui.profile
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,19 +20,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.questline.app.data.AppRepo
@@ -54,6 +48,9 @@ import java.time.format.DateTimeFormatter
 fun ProfileScreen(
     onNavigateToMoney: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToMirror: () -> Unit = {},
+    onNavigateToShop: () -> Unit = {},
+    onNavigateToAssistant: () -> Unit = {},
 ) {
     val profileContext = LocalContext.current
     val vm: ProfileViewModel = viewModel(key = "profile", factory = profileVmFactory(profileContext))
@@ -131,11 +128,30 @@ fun ProfileScreen(
         }
 
         Spacer(Modifier.height(18.dp))
-        Text(
-            "⚙ Настройки",
-            style = MaterialTheme.typography.titleMedium,
-            color = Q.accent,
-            modifier = Modifier.clickable { onNavigateToSettings() },
+        Text("Вехи стрика", style = MaterialTheme.typography.titleMedium)
+
+        Spacer(Modifier.height(8.dp))
+
+        if (state.streakMilestones.isEmpty()) {
+            HintCard("Держи серию 7 дней — вехи появятся здесь.")
+        } else {
+            Column {
+                state.streakMilestones.forEach { row ->
+                    StreakMilestonesRow(row)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Text("Меню", style = MaterialTheme.typography.titleMedium)
+
+        Spacer(Modifier.height(8.dp))
+
+        ProfileMenu(
+            onMirror = onNavigateToMirror,
+            onShop = onNavigateToShop,
+            onAssistant = onNavigateToAssistant,
+            onSettings = onNavigateToSettings,
         )
     }
 }
@@ -164,6 +180,40 @@ private fun HintCard(text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 24.dp),
+    )
+}
+
+/** Строка вех: эмодзи + название привычки + бейджи достигнутых вех 7/30/100 */
+@Composable
+private fun StreakMilestonesRow(row: HabitStreakMilestones) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${row.emoji.ifEmpty { "🔁" }} ${row.title}",
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        row.achieved.forEach { milestone -> MilestoneBadge(milestone) }
+    }
+}
+
+/** Бейдж вехи: тихая плашка accentSoft, без красного/янтарного (не статус данных) */
+@Composable
+private fun MilestoneBadge(milestone: Int) {
+    Text(
+        text = "$milestone",
+        style = MaterialTheme.typography.labelSmall,
+        color = Q.accent,
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .background(Q.accentSoft, RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
@@ -199,58 +249,7 @@ private fun reasonText(reason: String): String = when (reason) {
     "BUDGET_OK" -> "Бюджет сошёлся"
     "GOAL_DEPOSIT" -> "Взнос в копилку"
     "SHOP_PURCHASE" -> "Покупка в магазине"
+    "MILESTONE" -> "Веха стрика"
+    "HABIT_FREEZE" -> "Заморозка дня"
     else -> reason
-}
-
-/** Радар характеристик (Canvas), центр = слабость к краю сила */
-@Composable
-fun RadarChart(keyXp: Map<String, Int>, modifier: Modifier = Modifier) {
-    var animated by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { animated = true }
-    val fraction by animateFloatAsState(if (animated) 1f else 0f, tween(400), label = "radar")
-
-    // Цвета захватываются до DrawScope: внутри Canvas @Composable недоступны.
-    val borderColor = Q.border
-    val accentColor = Q.accent
-
-    Canvas(modifier) {
-        val keys = listOf("PHYSICS", "MIND", "MONEY", "SOCIAL", "DISCIPLINE")
-        val maxXp = (keyXp.values.maxOrNull() ?: 10).coerceAtLeast(1)
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = minOf(size.width, size.height) / 2f - 40f
-
-        fun point(idx: Int, valueFraction: Float): Offset {
-            val angle = Math.toRadians(-90.0 + idx * 72.0)
-            val r = radius * valueFraction
-            return Offset(center.x + (r * kotlin.math.cos(angle)).toFloat(), center.y + (r * kotlin.math.sin(angle)).toFloat())
-        }
-
-        // Сетка: 3 кольца
-        for (ring in listOf(1 / 3f, 2 / 3f, 1f)) {
-            val path = Path()
-            keys.indices.forEach { i ->
-                val p = point(i, ring)
-                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
-            }
-            path.close()
-            drawPath(path, borderColor, style = Stroke(width = 1.dp.toPx()))
-        }
-
-        // Данные
-        val dataPath = Path()
-        keys.forEachIndexed { i, k ->
-            val v = ((keyXp[k] ?: 0).toFloat() / maxXp).coerceIn(0.05f, 1f) * fraction
-            val p = point(i, v)
-            if (i == 0) dataPath.moveTo(p.x, p.y) else dataPath.lineTo(p.x, p.y)
-        }
-        dataPath.close()
-        drawPath(dataPath, accentColor.copy(alpha = 0.22f))
-        drawPath(dataPath, accentColor, style = Stroke(width = 2.dp.toPx()))
-
-        // Вершины
-        keys.forEachIndexed { i, k ->
-            val v = ((keyXp[k] ?: 0).toFloat() / maxXp).coerceIn(0.05f, 1f) * fraction
-            drawCircle(accentColor, radius = 5f, center = point(i, v))
-        }
-    }
 }
