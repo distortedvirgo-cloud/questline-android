@@ -6,6 +6,7 @@ import com.questline.app.data.habits.HabitCheck
 import com.questline.app.data.xp.XpLedger
 import com.questline.app.domain.ProgressionEngine
 import com.questline.app.domain.habits.HabitEngine
+import com.questline.app.notify.HabitReminderScheduler
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -22,7 +23,13 @@ data class HabitCheckResult(
  */
 class AppRepo internal constructor(private val db: QuestlineDatabase) {
 
-    constructor(context: Context) : this(QuestlineDatabase.get(context))
+    /** ApplicationContext для receiver-времени (N-01); в тестах (db-конструктор) — null */
+    @Volatile private var appContext: Context? = null
+
+    constructor(context: Context) : this(QuestlineDatabase.get(context)) {
+        appContext = context.applicationContext
+    }
+
     val categories = db.categoryDao()
     val tasks = db.taskDao()
     val quests = db.questDao()
@@ -154,6 +161,7 @@ class AppRepo internal constructor(private val db: QuestlineDatabase) {
         // Веха проверяется при каждом успешном чеке (в т.ч. когда количественная
         // привычка доросла до цели инкрементом): гвард по coins_ledger не даёт повтор.
         val milestone = if (success) awardMilestone(habit, checkId, epochDay) else null
+        rescheduleReminder(habit)
         return HabitCheckResult(awardedXp = awarded, milestone = milestone)
     }
 
@@ -207,20 +215,38 @@ class AppRepo internal constructor(private val db: QuestlineDatabase) {
         xpLedger.deleteByRef("HABIT", check.id)
     }
 
-    /** Создание (id == 0) или правка привычки. */
+    /** Создание (id == 0) или правка привычки; напоминание перепланируется. */
     suspend fun upsertHabit(habit: Habit) {
-        if (habit.id == 0L) habits.insert(habit) else habits.update(habit)
+        val id = if (habit.id == 0L) habits.insert(habit) else { habits.update(habit); habit.id }
+        rescheduleReminder(habit.copy(id = id))
+    }
+
+    /** Включить/выключить (null) напоминание привычки — точечная правка колонки. */
+    suspend fun setHabitReminder(habitId: Long, minOfDay: Int?) {
+        val habit = habits.byId(habitId) ?: return
+        val updated = habit.copy(reminderMinOfDay = minOfDay)
+        habits.update(updated)
+        rescheduleReminder(updated)
     }
 
     /** Архивация: уходит из активных, отметки и стрик сохраняются. */
     suspend fun archiveHabit(habit: Habit) {
         habits.archive(habit.id, AppRepo.todayEpochDay)
+        rescheduleReminder(habit.copy(archivedAt = AppRepo.todayEpochDay))
     }
 
     /** Полное удаление вместе с отметками; журнал XP не трогаем — история уровня. */
     suspend fun deleteHabit(habitId: Long) {
         habitChecks.deleteForHabit(habitId)
         habits.delete(habitId)
+        appContext?.let { HabitReminderScheduler.cancel(it, habitId) }
+    }
+
+    /** Перепланирование напоминания (N-01); в тестах без контекста — no-op. */
+    private fun rescheduleReminder(habit: Habit) {
+        val context = appContext ?: return
+        if (habit.archivedAt == null && habit.reminderMinOfDay != null) HabitReminderScheduler.schedule(context, habit)
+        else HabitReminderScheduler.cancel(context, habit.id)
     }
 
     companion object {

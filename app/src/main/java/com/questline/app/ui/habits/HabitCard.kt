@@ -78,7 +78,8 @@ internal fun progressLabel(habit: Habit, value: Double?): String? {
 private fun fmt(x: Double): String = if (x % 1.0 == 0.0) x.toLong().toString() else x.toString()
 
 /** Карточка привычки: чек-кнопка, эмодзи в цветном круге, стрик, неделя,
- *  при пропущенном запланированном дне — чип платной заморозки (T-07). */
+ *  при пропущенном запланированном дне — чип платной заморозки (T-07).
+ *  Тап по телу карточки (не по чеку) — экран привычки (N-02), долгий тап — архив. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun HabitCard(
@@ -87,7 +88,7 @@ internal fun HabitCard(
     canFreeze: Boolean,
     onCheck: () -> Unit,
     onUncheck: () -> Unit,
-    onOpen: () -> Unit,
+    onOpenDetail: () -> Unit = {},
     onArchive: () -> Unit,
     onFreeze: () -> Unit,
 ) {
@@ -97,7 +98,7 @@ internal fun HabitCard(
         border = BorderStroke(1.dp, Q.border),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onOpen, onLongClick = onArchive),
+            .combinedClickable(onClick = onOpenDetail, onLongClick = onArchive),
     ) {
         Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -25,6 +25,10 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE archivedAt IS NULL ORDER BY id")
     fun observeActive(): Flow<List<Habit>>
 
+    /** Разовое чтение активных привычек (перепланирование напоминаний N-01) */
+    @Query("SELECT * FROM habits WHERE archivedAt IS NULL ORDER BY id")
+    suspend fun activeOnce(): List<Habit>
+
     @Query("SELECT * FROM habits WHERE id = :id")
     suspend fun byId(id: Long): Habit?
 

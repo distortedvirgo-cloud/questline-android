@@ -85,6 +85,11 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
     val habitChecksToday: StateFlow<List<HabitCheck>> = repo.habitChecks.observeForDay(todayEpochDay)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** Отметки привычек за вчера: данные подсказки never-miss-twice (N-04). */
+    val habitChecksYesterday: StateFlow<List<HabitCheck>> =
+        repo.habitChecks.observeForDay(todayEpochDay - 1)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     /** Характеристики v3 (T-13): радар для мини-карточки, тот же расчёт, что в профиле. */
     val characteristics: StateFlow<Map<String, Int>> = combine(
         repo.habits.observeActive(),

@@ -38,9 +38,10 @@ import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.theme.Q
 import com.questline.app.ui.today.MilestoneCelebration
 
-/** Вкладка «Привычки» (T-04): «Сегодня» по расписанию + «Все привычки» */
+/** Вкладка «Привычки» (T-04): «Сегодня» по расписанию + «Все привычки».
+ *  Тап по карточке — экран привычки (N-02); чек-кнопка остаётся отметкой. */
 @Composable
-fun HabitsScreen() {
+fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
     val context = LocalContext.current
     val vm: HabitsViewModel = viewModel(
         key = "habits_screen",
@@ -84,7 +85,7 @@ fun HabitsScreen() {
                                 canFreeze = canAffordFreeze(coins),
                                 onCheck = { vm.check(card) },
                                 onUncheck = { vm.uncheck(card) },
-                                onOpen = { editTarget = card.habit; editorOpen = true },
+                                onOpenDetail = { onOpenDetail(card.habit.id) },
                                 onArchive = { archiveTarget = card.habit },
                                 onFreeze = { vm.freeze(card) },
                             )
@@ -99,7 +100,7 @@ fun HabitsScreen() {
                                 canFreeze = canAffordFreeze(coins),
                                 onCheck = { vm.check(card) },
                                 onUncheck = { vm.uncheck(card) },
-                                onOpen = { editTarget = card.habit; editorOpen = true },
+                                onOpenDetail = { onOpenDetail(card.habit.id) },
                                 onArchive = { archiveTarget = card.habit },
                                 onFreeze = { vm.freeze(card) },
                             )

@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -32,6 +33,22 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- N-01: напоминания о привычках (алармы перезапланируются после загрузки) -->
+        <receiver
+            android:name=".notify.HabitBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".notify.HabitAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notify.HabitMarkReceiver"
+            android:exported="false" />
 
         <!-- Перехват банковских push-уведомлений для автопарсинга транзакций -->
         <service

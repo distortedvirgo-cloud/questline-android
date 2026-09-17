@@ -73,6 +73,7 @@ fun HabitEditorSheet(
         }
         var unit by remember(existing?.id) { mutableStateOf(existing?.unit.orEmpty()) }
         var complexity by remember(existing?.id) { mutableStateOf(existing?.complexity ?: "M") }
+        var reminderMin by remember(existing?.id) { mutableStateOf(existing?.reminderMinOfDay) }
         var confirm by remember { mutableStateOf<ConfirmKind?>(null) }
 
         val targetParsed = if (hasTarget) targetText.replace(',', '.').toDoubleOrNull() else null
@@ -191,6 +192,11 @@ fun HabitEditorSheet(
                 color = Q.inkMuted,
             )
 
+            ReminderField(
+                minOfDay = reminderMin,
+                onMinOfDay = { reminderMin = it },
+            )
+
             Button(
                 onClick = {
                     onSave(
@@ -209,6 +215,7 @@ fun HabitEditorSheet(
                             complexity = complexity,
                             createdAt = existing?.createdAt ?: AppRepo.todayEpochDay,
                             archivedAt = existing?.archivedAt,
+                            reminderMinOfDay = reminderMin,
                         ),
                     )
                 },

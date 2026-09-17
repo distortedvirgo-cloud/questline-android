@@ -83,6 +83,22 @@ object HabitEngine {
         else -> true
     }
 
+    /**
+     * Never miss twice (N-04): привычка запланирована и вчера, и сегодня — и
+     * оба дня остались без отметки. Заморозка — удержанный день, не пропуск;
+     * количественный чек ниже цели — пропуск. День до создания привычки
+     * обязательством не считается; у TIMES_PER_WEEK конкретные дни не
+     * запланированы → false.
+     */
+    fun missedTwice(habit: Habit, checks: List<HabitCheck>, today: Long): Boolean {
+        if (habit.scheduleType == SCHEDULE_TIMES_PER_WEEK) return false
+        if (!isDue(habit, today) || today - 1 < habit.createdAt || !isDue(habit, today - 1)) return false
+        val byDay = checks.associateBy { it.epochDay }
+        fun missed(check: HabitCheck?): Boolean =
+            check == null || (!check.frozen && !isSuccess(habit, check))
+        return missed(byDay[today - 1]) && missed(byDay[today])
+    }
+
     /** Недельная цель гибкой привычки: сколько отметок должно набраться за 7 дней */
     fun weekTarget(habit: Habit): Int = habit.timesPerWeek
 

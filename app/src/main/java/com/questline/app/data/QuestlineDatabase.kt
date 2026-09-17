@@ -19,7 +19,7 @@ import com.questline.app.data.xp.XpLedgerDao
         Txn::class, PendingTxn::class, Goal::class, CoinsLedger::class,
         Habit::class, HabitCheck::class, XpLedger::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class QuestlineDatabase : RoomDatabase() {
@@ -96,6 +96,13 @@ abstract class QuestlineDatabase : RoomDatabase() {
             }
         }
 
+        /** v4 → v5: минута дня напоминания привычки (null = напоминания нет) */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN reminderMinOfDay INTEGER")
+            }
+        }
+
         fun get(context: Context): QuestlineDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -103,7 +110,7 @@ abstract class QuestlineDatabase : RoomDatabase() {
                     QuestlineDatabase::class.java,
                     "questline.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }

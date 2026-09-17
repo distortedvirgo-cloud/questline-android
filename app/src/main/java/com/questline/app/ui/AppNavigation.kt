@@ -1,5 +1,8 @@
 package com.questline.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -15,14 +18,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.questline.app.data.AppRepo
+import com.questline.app.ui.onboarding.OnboardingGate
+import com.questline.app.ui.onboarding.OnboardingScreen
+import com.questline.app.ui.theme.Q
 import com.questline.app.ui.assistant.AssistantScreen
+import com.questline.app.ui.habits.HabitDetailScreen
 import com.questline.app.ui.habits.HabitsScreen
 import com.questline.app.ui.money.MoneyScreen
 import com.questline.app.ui.money.OperationsScreen
@@ -49,15 +61,32 @@ fun QuestlineApp() {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
-    // Сидирование дефолтных категорий при первом запуске
+    // Сидирование категорий при первом запуске + онбординг v3 (N-03): только
+    // для новой установки с пустой БД; апгрейд с данными закрывается флагом.
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(Unit) { AppRepo.get(context).seedIfEmpty() }
+    var onboarding by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        val repo = AppRepo.get(context)
+        repo.seedIfEmpty()
+        onboarding = OnboardingGate.resolve(context, repo)
+    }
+    if (onboarding == true) {
+        OnboardingScreen(onFinish = { onboarding = false })
+        return
+    }
+    if (onboarding == null) {
+        // Пока решение не получено — пустой фон схемы вместо мигающего «Сегодня»
+        Box(Modifier.fillMaxSize().background(Q.bg))
+        return
+    }
 
     Scaffold(
         // Фон схемы, не прозрачный: под ним окно активности может быть светлым
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant", "operations", "stats")
+            // Экран привычки (N-02) — полноэкранный, как mirror
+            val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant", "operations", "stats") ||
+                currentRoute?.startsWith("habit/") == true
             if (!hideBar) {
                 NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
                 tabs.forEach { tab ->
@@ -89,9 +118,21 @@ fun QuestlineApp() {
                     onOpenAllTasks = { navController.navigate("tasks") },
                     onOpenMoney = { navController.navigate("money") },
                     onOpenMirror = { navController.navigate("mirror") },
+                    onOpenHabits = { navController.navigate("habits") },
                 )
             }
-            composable("habits") { HabitsScreen() }
+            composable("habits") {
+                HabitsScreen(onOpenDetail = { id -> navController.navigate("habit/$id") })
+            }
+            composable(
+                route = "habit/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+            ) { entry ->
+                HabitDetailScreen(
+                    habitId = entry.arguments?.getLong("id") ?: 0L,
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable("tasks") { TasksScreen() }
             composable("money") {
                 MoneyScreen(

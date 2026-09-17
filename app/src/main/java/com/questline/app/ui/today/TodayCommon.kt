@@ -4,9 +4,17 @@ package com.questline.app.ui.today
  * разбиты по файлам, чтобы держать лимит STYLE.md ≤300 строк на файл.
  */
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.questline.app.data.Task
 import com.questline.app.data.habits.Habit
@@ -34,4 +42,24 @@ internal fun dayProgress(
         tasks.count { it.done || (it.repeatIntervalDays > 0 && it.lastDoneEpochDay == today) }
     return done to dueHabits.size + tasks.size
 }
+
+/** Мягкая подсказка never-miss-twice (N-04): пропуск уже был — вернись сегодня.
+ *  Строка-карточка над привычками дня, без модалок и без наказаний. */
+@Composable
+internal fun MissedTwiceHintCard(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(CHIP_SHAPE)
+            .background(Q.surfaceAlt)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            "Пропуск уже был. Вернись сегодня — серия почти не пострадала.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Q.inkMuted,
+        )
+    }
+}
+
 

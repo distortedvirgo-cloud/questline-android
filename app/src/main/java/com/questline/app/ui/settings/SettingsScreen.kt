@@ -86,6 +86,8 @@ fun SettingsScreen(
 
         AppearanceSection()
         Spacer(Modifier.height(12.dp))
+        ReminderSettingsSection()
+        Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.SyncHealthSection()
         Spacer(Modifier.height(12.dp))
         com.questline.app.ui.settings.AiSettingsSection()

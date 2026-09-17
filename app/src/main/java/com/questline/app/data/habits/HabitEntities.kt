@@ -40,6 +40,8 @@ data class Habit(
     val createdAt: Long,
     /** День архивации; null = жива */
     val archivedAt: Long? = null,
+    /** v3.1 (N-01): минута дня напоминания (0..1439); null = напоминания нет */
+    val reminderMinOfDay: Int? = null,
 )
 
 // ---------------- Отметки привычек ----------------

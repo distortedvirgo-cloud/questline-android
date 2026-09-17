@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -23,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.questline.app.data.AppRepo
 import com.questline.app.domain.BudgetQuestEngine
 import com.questline.app.domain.QuestGenerator
+import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.theme.Q
 
 private const val MAX_TODAY_TASKS = 5
@@ -45,7 +48,12 @@ private const val MAX_TODAY_TASKS = 5
 // ------------------ Экран ------------------
 
 @Composable
-fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, onOpenMirror: () -> Unit = {}) {
+fun TodayScreen(
+    onOpenAllTasks: () -> Unit = {},
+    onOpenMoney: () -> Unit = {},
+    onOpenMirror: () -> Unit = {},
+    onOpenHabits: () -> Unit = {},
+) {
     val context = LocalContext.current
     val repo = remember { AppRepo.get(context) }
     val vm: TodayViewModel = viewModel(initializer = { TodayViewModel(repo) })
@@ -68,6 +76,7 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, o
     val busyIds by vm.busyQuestIds.collectAsStateWithLifecycle()
     val habits by vm.habits.collectAsStateWithLifecycle()
     val checksToday by vm.habitChecksToday.collectAsStateWithLifecycle()
+    val checksYesterday by vm.habitChecksYesterday.collectAsStateWithLifecycle()
     val streaks by vm.habitStreaks.collectAsStateWithLifecycle()
     val characteristics by vm.characteristics.collectAsStateWithLifecycle()
     val questCategories by vm.questCategories.collectAsStateWithLifecycle()
@@ -75,6 +84,10 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, o
     val milestone by vm.milestone.collectAsStateWithLifecycle()
 
     val (dayDone, dayTotal) = dayProgress(habits, checksToday, tasks, AppRepo.todayEpochDay)
+
+    // Never miss twice (N-04): привычка запланирована вчера и сегодня, оба дня пустые.
+    val checksBothDays = checksYesterday + checksToday
+    val missedTwice = habits.any { HabitEngine.missedTwice(it, checksBothDays, AppRepo.todayEpochDay) }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -94,6 +107,12 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, o
             Spacer(Modifier.height(10.dp))
             DayProgressRow(done = dayDone, total = dayTotal)
             Spacer(Modifier.height(10.dp))
+
+            // Пустой день новичка: приглашение, не пустота (N-04).
+            if (habits.isEmpty() && tasks.isEmpty()) {
+                EmptyTodayInvitation(onOpenHabits)
+                Spacer(Modifier.height(10.dp))
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(Modifier.weight(1f), emoji = "🔥", value = "${progress?.streakDays ?: 0} дней")
@@ -121,6 +140,11 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, o
             Spacer(Modifier.height(20.dp))
 
             // Привычки дня: компактные ряды с чеками (+XP полёт, чип заморозки).
+            // Над ними — мягкая подсказка never-miss-twice (N-04).
+            if (missedTwice) {
+                MissedTwiceHintCard()
+                Spacer(Modifier.height(8.dp))
+            }
             TodayHabitsSection(habits, checksToday, streaks, freezeOffers, coins, AppRepo.todayEpochDay, vm)
             Spacer(Modifier.height(20.dp))
 
@@ -147,5 +171,33 @@ private fun MirrorEntry(onOpenMirror: () -> Unit) {
         colors = ButtonDefaults.textButtonColors(contentColor = Q.accent),
     ) {
         Text("🪞 Зеркало", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Пустое состояние «Сегодня» (N-04): ни привычек, ни задач — приглашение
+ *  начать с одной маленькой привычки. Мягкий тон, кнопка ведёт в «Привычки». */
+@Composable
+private fun EmptyTodayInvitation(onOpenHabits: () -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = CARD_SHAPE, colors = cardColors()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Начни с одной маленькой привычки",
+                style = MaterialTheme.typography.titleMedium,
+                color = Q.ink,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Каждый день хоть немного, но лучше — и сегодня уже получится.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Q.inkMuted,
+            )
+            Spacer(Modifier.height(6.dp))
+            TextButton(
+                onClick = onOpenHabits,
+                colors = ButtonDefaults.textButtonColors(contentColor = Q.accent),
+            ) {
+                Text("Выбрать привычку")
+            }
+        }
     }
 }
