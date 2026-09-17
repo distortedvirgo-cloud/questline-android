@@ -257,7 +257,15 @@ private fun UnplannedRow(row: PlanRow, onPick: () -> Unit) {
 /** Диалог ввода месячного плана — механика диалога бюджета из v2. */
 @Composable
 private fun EditPlanDialog(category: Category, onDismiss: () -> Unit, onSave: (Long) -> Unit) {
-    var text by remember { mutableStateOf(category.budgetMonthlyMinor?.let { (it / 100).toString() } ?: "") }
+    // Нулевой бюджет — пустое поле, чтобы ввод не дописывался после «0»
+    var text by remember {
+        mutableStateOf(
+            category.budgetMonthlyMinor
+                ?.takeIf { it > 0L }
+                ?.let { (it / 100).toString() }
+                ?: "",
+        )
+    }
     val minor = MoneyFormat.parseRubles(text)
 
     AlertDialog(

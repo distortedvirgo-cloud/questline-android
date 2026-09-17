@@ -84,7 +84,10 @@ internal fun GoalEditorDialog(
     onDelete: () -> Unit,
 ) {
     var name by remember { mutableStateOf(goal.name) }
-    var targetText by remember { mutableStateOf((goal.targetMinor / 100).toString()) }
+    // Нулевая цель (новая копилка) — пустое поле: иначе ввод дописывается после «0» («050000»)
+    var targetText by remember {
+        mutableStateOf(if (goal.targetMinor > 0L) (goal.targetMinor / 100).toString() else "")
+    }
     var status by remember { mutableStateOf(goal.status) }
     var confirmingDelete by remember { mutableStateOf(false) }
     val target = MoneyFormat.parseRubles(targetText)
