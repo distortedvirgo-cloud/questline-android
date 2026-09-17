@@ -77,6 +77,15 @@ object AiClient {
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $apiKey")
+                // Шлюз OpenCode Zen требует сессионный заголовок (ротация по дню —
+                // лучше кэшируется), дубль ключа безвреден для остальных провайдеров;
+                // без User-Agent часть CDN (Cloudflare 1010) режет запрос на корню
+                .header("x-api-key", apiKey)
+                .header(
+                    "x-opencode-session",
+                    "questline-coach-" + java.time.LocalDate.now().toEpochDay(),
+                )
+                .header("User-Agent", "questline-android/3.2")
                 .header("Content-Type", "application/json")
                 .post(body.toString().toRequestBody(jsonType))
                 .build()
