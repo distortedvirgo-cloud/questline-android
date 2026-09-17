@@ -2,6 +2,7 @@ package com.questline.app.data.habits
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +35,18 @@ interface HabitDao {
     /** Сколько отметок привычки в интервале дат (включительно) — консистентность/диагностика */
     @Query("SELECT COUNT(*) FROM habit_checks WHERE habitId = :habitId AND epochDay BETWEEN :fromDay AND :toDay")
     suspend fun countChecksBetween(habitId: Long, fromDay: Long, toDay: Long): Int
+
+    // --- T-16: бэкап v3 ---
+    /** Все привычки (включая архивные) для экспорта */
+    @Query("SELECT * FROM habits ORDER BY id")
+    suspend fun all(): List<Habit>
+
+    /** Восстановление из бэкапа: REPLACE с сохранёнными id */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(habits: List<Habit>)
+
+    @Query("DELETE FROM habits")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -73,4 +86,15 @@ interface HabitCheckDao {
     /** Удаление всех отметок привычки (при полном удалении привычки) */
     @Query("DELETE FROM habit_checks WHERE habitId = :habitId")
     suspend fun deleteForHabit(habitId: Long)
+
+    // --- T-16: бэкап v3 ---
+    /** Весь журнал отметок для экспорта (порядок по id сохраняет парность с записями XP) */
+    @Query("SELECT * FROM habit_checks ORDER BY id")
+    suspend fun all(): List<HabitCheck>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(checks: List<HabitCheck>)
+
+    @Query("DELETE FROM habit_checks")
+    suspend fun clearAll()
 }

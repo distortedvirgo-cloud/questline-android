@@ -11,7 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -28,9 +27,9 @@ internal fun slicePalette(q: QColors) = listOf(
     q.warn,            // 2
     q.coin,            // 3
     q.danger,          // 4
-    Color(0xFF7B86E8), // 5 — светло-акцентный
-    Color(0xFF6699A8), // 6 — приглушённый морской
-    Color(0xFF8F8F8F), // 7 — нейтральный серый
+    q.accentLight,     // 5 — светло-акцентный
+    q.seaMuted,        // 6 — приглушённый морской
+    q.chartGray,       // 7 — нейтральный серый
 )
 
 /**

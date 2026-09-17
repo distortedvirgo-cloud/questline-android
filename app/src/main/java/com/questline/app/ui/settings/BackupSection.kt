@@ -79,7 +79,7 @@ fun BackupSection() {
         Text("Данные и бэкап", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Все данные хранятся только на телефоне. Сохраняйте копию перед сменой устройства.",
+            "Все данные хранятся только на телефоне: задачи, деньги, привычки и журнал XP. Сохраняйте копию перед сменой устройства.",
             style = MaterialTheme.typography.bodySmall,
             color = Q.inkMuted,
         )
@@ -109,7 +109,7 @@ fun BackupSection() {
                         try {
                             val count = withContext(Dispatchers.IO) {
                                 context.contentResolver.openInputStream(uri)?.use { input ->
-                                    Backup.restore(AppRepo.get(context), context, input)
+                                    Backup.restore(AppRepo.get(context), input)
                                 } ?: throw RuntimeException("Не удалось открыть файл")
                             }
                             message = "Восстановлено записей: $count"

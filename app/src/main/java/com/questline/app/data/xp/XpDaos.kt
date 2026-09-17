@@ -2,6 +2,7 @@ package com.questline.app.data.xp
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -26,6 +27,10 @@ interface XpLedgerDao {
     @Query("SELECT COALESCE(SUM(delta),0) FROM xp_ledger WHERE epochDay = :epochDay AND source = :source")
     suspend fun sumBySource(epochDay: Long, source: String): Int
 
+    /** Дни с ненулевым начислением XP в интервале (включительно) — «дни без нуля» зеркала */
+    @Query("SELECT DISTINCT epochDay FROM xp_ledger WHERE epochDay BETWEEN :fromDay AND :toDay AND delta > 0")
+    suspend fun daysWithXpBetween(fromDay: Long, toDay: Long): List<Long>
+
     /** Убрать запись источника по refId — снятие отметки привычки */
     @Query("DELETE FROM xp_ledger WHERE source = :source AND refId = :refId")
     suspend fun deleteByRef(source: String, refId: Long)
@@ -33,4 +38,14 @@ interface XpLedgerDao {
     /** Есть ли запись источника по refId — XP начисляется один раз на отметку */
     @Query("SELECT COUNT(*) FROM xp_ledger WHERE source = :source AND refId = :refId")
     suspend fun countByRef(source: String, refId: Long): Int
+
+    // --- T-16: бэкап v3 ---
+    @Query("SELECT * FROM xp_ledger ORDER BY id")
+    suspend fun all(): List<XpLedger>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<XpLedger>)
+
+    @Query("DELETE FROM xp_ledger")
+    suspend fun clearAll()
 }

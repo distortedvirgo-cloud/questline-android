@@ -1,292 +1,284 @@
 package com.questline.app.ui.assistant
 
 import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.questline.app.ai.AiAssistant
 import com.questline.app.ai.AiClient
 import com.questline.app.ai.AiPrefs
 import com.questline.app.data.AppRepo
-import com.questline.app.data.Task
-import com.questline.app.data.Txn
+import com.questline.app.domain.advice.BudgetPressure
+import com.questline.app.domain.advice.LaggingGoal
+import com.questline.app.domain.advice.NudgeEngine
+import com.questline.app.domain.advice.NudgeInput
+import com.questline.app.domain.advice.Tip
+import com.questline.app.domain.finance.BurnRate
+import com.questline.app.domain.finance.burnRate
+import com.questline.app.domain.habits.HabitEngine
+import com.questline.app.ui.money.MoneyFormat
 import com.questline.app.ui.theme.Q
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
-/** Глобальный AI-ассистент: чат с контекстом приложения и применяемые действия. */
+/** Сводка недели для верхней карточки: собирается локально, без сети. */
+data class WeekSummary(
+    val weekXp: Int,
+    /** Успешных отметок привычек за 7 дней (заморозки не считаются). */
+    val checksDone: Int,
+    /** Лучший стрик среди активных привычек. */
+    val bestStreak: Int,
+    /** Темп трат месяца (burn rate по всем категориям с планом). */
+    val burn: BurnRate,
+    val monthSpentMinor: Long,
+    val monthPlanMinor: Long,
+    /** Активные копилки с ненулевой целью и их прогресс. */
+    val goals: List<GoalProgress>,
+)
+
+data class GoalProgress(val name: String, val savedMinor: Long, val targetMinor: Long) {
+    val percent: Int get() = if (targetMinor <= 0) 0 else ((savedMinor * 100 / targetMinor).toInt()).coerceIn(0, 100)
+}
+
+/** Состояние экрана AI-коуча: сводка + ветка советов (офлайн или LLM). */
+data class CoachUi(
+    val keyConfigured: Boolean = false,
+    val summary: WeekSummary? = null,
+    /** Офлайн-советы NudgeEngine — только когда ключ не настроен. */
+    val offlineTips: List<Tip> = emptyList(),
+    val coachBusy: Boolean = false,
+    /** 3–5 коротких пунктов ответа модели. */
+    val coachAnswer: List<String> = emptyList(),
+    val coachError: String? = null,
+)
+
+private val COACH_SYSTEM_PROMPT = """
+    Ты — добрый AI-коуч приложения Questline (привычки + финансы). Тон
+    поддерживающий, без стыда, наказаний и критики. По сводке недели
+    пользователя дай 3–5 коротких советов на следующую неделю.
+    Правила: по-русски; каждый пункт — одна строка, начинается с «•», без
+    markdown и нумерации; конкретно и выполнимо за шаг до 10 минут;
+    максимум 500 символов. Не придумывай данные, которых нет в сводке.
+""".trimIndent()
+
+/** AI-коуч v3: локальная сводка недели + советы (офлайн NudgeEngine или один LLM-вызов). */
 @Composable
 fun AssistantScreen() {
-    val context = LocalContext.current
-    val vm: AssistantViewModel = viewModel(key = "assistant", factory = assistantVmFactory(context.applicationContext))
-
-    if (!AiPrefs.isConfigured(context)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("🤖", fontSize = 48.sp)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Ассистент работает через AI-модель GLM.\nДобавь API-ключ в Настройках —\nи он будет знать все твои задачи,\nквесты и бюджеты.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Q.inkMuted,
-            )
-        }
-        return
-    }
-
-    val messages by vm.messages
-    val busy by vm.busy
-    val listState = rememberLazyListState()
-    var input by remember { mutableStateOf("") }
-
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
-    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vm: AssistantViewModel = viewModel(key = "assistant-coach", factory = assistantVmFactory(context.applicationContext))
+    val ui by vm.state.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages) { msg ->
-                MessageBubble(
-                    text = msg.text,
-                    fromUser = msg.role == "user",
-                    action = msg.action,
-                    actionApplied = msg.actionApplied,
-                    onApply = { vm.applyAction(msg) },
-                )
-            }
-            if (busy) {
-                item {
-                    Text("Ассистент печатает…", style = MaterialTheme.typography.labelSmall, color = Q.inkMuted)
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Спроси о чём угодно…") },
-                maxLines = 3,
-            )
-            Spacer(Modifier.padding(4.dp))
-            IconButton(
-                enabled = !busy && input.isNotBlank(),
-                onClick = {
-                    vm.send(input.trim())
-                    input = ""
-                },
+        val summary = ui.summary
+        if (summary == null) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Send, contentDescription = "Отправить", tint = Q.accent)
+                CircularProgressIndicator(color = Q.accent)
             }
-        }
-    }
-}
-
-@Composable
-private fun MessageBubble(
-    text: String,
-    fromUser: Boolean,
-    action: AiAssistant.SuggestedAction?,
-    actionApplied: Boolean,
-    onApply: () -> Unit,
-) {
-    Column(horizontalAlignment = if (fromUser) Alignment.End else Alignment.Start, modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 290.dp)
-                .background(
-                    if (fromUser) Q.accentSoft else Q.surface,
-                    RoundedCornerShape(
-                        topStart = 16.dp, topEnd = 16.dp,
-                        bottomStart = if (fromUser) 16.dp else 4.dp,
-                        bottomEnd = if (fromUser) 4.dp else 16.dp,
-                    ),
-                )
-                .border(1.dp, if (fromUser) Q.accent.copy(alpha = 0.25f) else Q.border, RoundedCornerShape(16.dp))
-                .padding(12.dp),
-        ) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-        }
-        if (action != null && !fromUser) {
-            ActionChip(action, actionApplied, onApply)
-        }
-    }
-}
-
-@Composable
-private fun ActionChip(action: AiAssistant.SuggestedAction, applied: Boolean, onApply: () -> Unit) {
-    val label = if (action.kind == "add_task") {
-        "＋ Задача: ${action.title}"
-    } else {
-        "＋ Расход: ${MoneyFmt(action.amountRub)} ₽ — ${action.categoryName}"
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .padding(top = 4.dp)
-            .background(Q.accentSoft, RoundedCornerShape(12.dp))
-            .border(1.dp, Q.accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 2.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        if (applied) {
-            Text(" ✓", color = Q.success, style = MaterialTheme.typography.labelMedium)
         } else {
-            TextButton(onClick = onApply) { Text("Применить") }
+            WeekSummaryCard(summary)
         }
+        Spacer(Modifier.height(16.dp))
+        Text("Советы", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        if (!ui.keyConfigured) {
+            ui.offlineTips.forEach { tip ->
+                TipCard(tip)
+                Spacer(Modifier.height(8.dp))
+            }
+            SoftNote("Офлайн-советы: подключи ключ в Настройках — и коуч подстроит советы под твои данные.")
+        } else {
+            Button(
+                onClick = vm::askCoach,
+                enabled = !ui.coachBusy && summary != null,
+                colors = ButtonDefaults.buttonColors(containerColor = Q.accent),
+            ) {
+                Text(if (ui.coachBusy) "Коуч думает…" else "Спросить коуча")
+            }
+            if (ui.coachBusy) {
+                Spacer(Modifier.height(8.dp))
+                CircularProgressIndicator(color = Q.accent, strokeWidth = 2.dp, modifier = Modifier.height(18.dp))
+            }
+            if (ui.coachAnswer.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                CoachAnswerCard(ui.coachAnswer)
+            }
+            ui.coachError?.let { error ->
+                Spacer(Modifier.height(8.dp))
+                SoftNote(error)
+            }
+            Spacer(Modifier.height(4.dp))
+            SoftNote("Ответ модели — только идея: решения принимаешь ты.")
+        }
+        Spacer(Modifier.height(32.dp))
     }
 }
 
-private fun MoneyFmt(rub: Double?): String =
-    if (rub == null) "?" else com.questline.app.ui.money.MoneyFormat.text((rub * 100).toLong())
-
+/** Мозг экрана: сводка недели из DAO + один LLM-вызов по кнопке. */
 class AssistantViewModel(
     private val app: Context,
     private val repo: AppRepo,
 ) : ViewModel() {
 
-    data class Msg(
-        val role: String, // user | assistant
-        val text: String,
-        val action: AiAssistant.SuggestedAction? = null,
-        val actionApplied: Boolean = false,
-    )
+    private val today = AppRepo.todayEpochDay
+    private val monthDate = LocalDate.ofEpochDay(today)
+    private val monthStart = monthDate.withDayOfMonth(1).toEpochDay()
 
-    val messages = androidx.compose.runtime.mutableStateOf(
-        listOf(
-            Msg(
-                "assistant",
-                "Привет! Я ассистент Questline. Вижу твои квесты, задачи и бюджеты. " +
-                    "Могу подсказать план на день, разобрать расходы или добавить задачу — просто попроси.",
-            ),
-        ),
-    )
-    val busy = androidx.compose.runtime.mutableStateOf(false)
+    private val _state = MutableStateFlow(CoachUi())
+    val state = _state.asStateFlow()
 
-    fun send(text: String) {
-        if (text.isBlank() || busy.value) return
-        messages.value = messages.value + Msg("user", text)
-        busy.value = true
+    /** Компактный контекст для коуча (≤1КБ), собирается один раз при входе. */
+    private var coachContext: String = ""
+
+    init {
+        viewModelScope.launch { load() }
+    }
+
+    private suspend fun load() {
+        val habits = repo.habits.observeActive().first()
+        val checks = repo.habitChecks.observeAll().first()
+        val checksByHabit = checks.groupBy { it.habitId }
+        val txns = repo.txns.observeRange(monthStart, today).first()
+        val finance = repo.categories.observeFinance().first()
+        val goals = repo.goals.observeActive().first()
+        val weekStart = today - 6
+
+        val planMinor = finance.filter { !it.isIncome }.sumOf { it.budgetMonthlyMinor ?: 0L }
+        val spentMinor = txns.filter { it.type == "EXPENSE" }.sumOf { it.amountMinor }
+        val consistency = HabitEngine.consistencyByCharacteristic(habits, checks, weekStart)
+        val input = NudgeInput(
+            habits = habits,
+            checks = checks,
+            consistency = consistency,
+            budgets = budgetPressures(finance, txns),
+            laggingGoals = goals
+                .filter { it.status == "ACTIVE" && it.targetMinor > 0 && it.savedMinor <= 0L }
+                .map { LaggingGoal(it.name) },
+            today = today,
+        )
+        val summary = WeekSummary(
+            weekXp = repo.xpLedger.sumBetween(weekStart, today),
+            checksDone = checks.count { it.epochDay in weekStart..today && !it.frozen },
+            bestStreak = habits.maxOfOrNull {
+                HabitEngine.streak(it, checksByHabit[it.id].orEmpty(), today).second
+            } ?: 0,
+            burn = burnRate(spentMinor, planMinor, monthDate.dayOfMonth, monthDate.lengthOfMonth()),
+            monthSpentMinor = spentMinor,
+            monthPlanMinor = planMinor,
+            goals = goals
+                .filter { it.status == "ACTIVE" && it.targetMinor > 0 }
+                .map { GoalProgress(it.name, it.savedMinor, it.targetMinor) },
+        )
+        val configured = AiPrefs.isConfigured(app)
+        coachContext = buildCoachContext(summary, habits)
+        _state.value = CoachUi(
+            keyConfigured = configured,
+            summary = summary,
+            offlineTips = if (configured) emptyList() else NudgeEngine.weeklyTips(input),
+        )
+    }
+
+    /** Категории с планом, по которым burn rate FAST или OVER (та же математика T-08). */
+    private fun budgetPressures(finance: List<com.questline.app.data.Category>, txns: List<com.questline.app.data.Txn>): List<BudgetPressure> {
+        val spentByCategory = txns
+            .filter { it.type == "EXPENSE" }
+            .groupBy { it.categoryId }
+            .mapValues { (_, list) -> list.sumOf { it.amountMinor } }
+        return finance.filter { !it.isIncome && (it.budgetMonthlyMinor ?: 0L) > 0L }.mapNotNull { category ->
+            val rate = burnRate(
+                spentMinor = spentByCategory[category.id] ?: 0L,
+                planMinor = category.budgetMonthlyMinor ?: 0L,
+                dayOfMonth = monthDate.dayOfMonth,
+                daysInMonth = monthDate.lengthOfMonth(),
+            )
+            when (rate.status) {
+                BurnRate.Status.CALM -> null
+                else -> BudgetPressure(category.name, rate.status, rate.overspendPercent)
+            }
+        }
+    }
+
+    private fun buildCoachContext(summary: WeekSummary, habits: List<com.questline.app.data.habits.Habit>): String {
+        val burnText = when (summary.burn.status) {
+            BurnRate.Status.OVER -> "план трат пробит"
+            BurnRate.Status.FAST -> "траты быстрее плана на ${summary.burn.overspendPercent} п.п."
+            BurnRate.Status.CALM -> "темп трат спокойный"
+        }
+        val habitsText = habits.take(6)
+            .joinToString("; ") { "${it.title} (${it.complexity})" }
+            .ifEmpty { "нет активных" }
+        val goalsText = summary.goals.joinToString("; ") { "${it.name} ${it.percent}%" }.ifEmpty { "нет" }
+        return "Сводка недели: XP ${summary.weekXp}, отметок привычек ${summary.checksDone}, " +
+            "лучший стрик ${summary.bestStreak} дн. ${burnText}: " +
+            "потрачено ${MoneyFormat.text(summary.monthSpentMinor)} из плана " +
+            "${MoneyFormat.text(summary.monthPlanMinor)}. " +
+            "Привычки: $habitsText. Копилки: $goalsText."
+    }
+
+    /** «Спросить коуча»: один LLM-вызов с компактной сводкой. Повтор — новый ответ. */
+    fun askCoach() {
+        val ui = _state.value
+        if (ui.coachBusy || !ui.keyConfigured || ui.summary == null) return
+        _state.value = ui.copy(coachBusy = true, coachError = null)
         viewModelScope.launch {
             try {
-                val context = AiAssistant.buildContext(repo)
-                val history = messages.value.drop(1).takeLast(10).map { it.role to it.text }
                 val reply = AiClient.chat(
                     baseUrl = AiPrefs.baseUrl(app),
                     apiKey = AiPrefs.apiKey(app),
                     model = AiPrefs.model(app),
-                    messages = listOf("system" to (AiAssistant.SYSTEM_PROMPT + "\n\nДанные пользователя:\n$context")) + history,
+                    messages = listOf(
+                        "system" to COACH_SYSTEM_PROMPT,
+                        "user" to "$coachContext\n\nДай 3–5 коротких советов на следующую неделю.",
+                    ),
                 )
-                val (cleanText, action) = AiAssistant.parseReply(reply)
-                messages.value = messages.value + Msg("assistant", cleanText.ifEmpty { "…" }, action)
+                _state.value = _state.value.copy(coachBusy = false, coachAnswer = parseCoachReply(reply))
             } catch (e: Exception) {
-                messages.value = messages.value + Msg(
-                    "assistant",
-                    "Не получилось связаться с моделью: ${e.message?.take(120)}. Проверь ключ и сеть в Настройках.",
+                _state.value = _state.value.copy(
+                    coachBusy = false,
+                    coachError = "Коуч не ответил: ${e.message?.take(120) ?: "связь пропала"}. " +
+                        "Проверь ключ и сеть в Настройках — а офлайн-советы всегда рядом.",
                 )
-            } finally {
-                busy.value = false
             }
         }
     }
 
-    /** Применить предложенное действие (только по явному тапу). */
-    fun applyAction(msg: Msg) {
-        val action = msg.action ?: return
-        viewModelScope.launch {
-            try {
-                when (action.kind) {
-                    "add_task" -> {
-                        val keyCat = repo.categories.observeQuest().first()
-                            .firstOrNull { it.questKey == action.questKey }
-                        repo.tasks.insert(
-                            Task(
-                                title = action.title,
-                                categoryId = keyCat?.id,
-                                complexity = "M",
-                                createdAtMillis = System.currentTimeMillis(),
-                            ),
-                        )
-                    }
-                    "add_expense" -> {
-                        val name = action.categoryName.lowercase()
-                        val cat = repo.categories.observeFinance().first()
-                            .firstOrNull { it.name.lowercase().contains(name) || name.contains(it.name.lowercase()) }
-                            ?: repo.categories.observeFinance().first().firstOrNull { it.name == "Прочее" }
-                        cat?.let {
-                            repo.txns.insert(
-                                Txn(
-                                    amountMinor = ((action.amountRub ?: 0.0) * 100).toLong(),
-                                    type = "EXPENSE",
-                                    categoryId = it.id,
-                                    epochDay = AppRepo.todayEpochDay,
-                                    note = "Через ассистента",
-                                    source = "MANUAL",
-                                    createdAtMillis = System.currentTimeMillis(),
-                                ),
-                            )
-                        }
-                    }
-                }
-                messages.value = messages.value.map {
-                    if (it === msg) it.copy(actionApplied = true) else it
-                }
-            } catch (_: Exception) {
-                // Тихо: действие можно применить повторно
-            }
-        }
-    }
+    private fun parseCoachReply(reply: String): List<String> = reply
+        .lines()
+        .map { it.trim().removePrefix("•").removePrefix("-").removePrefix("*").trim() }
+        .filter { it.isNotBlank() }
+        .take(6)
 }
 
 fun assistantVmFactory(context: Context): androidx.lifecycle.ViewModelProvider.Factory = viewModelFactory {

@@ -88,6 +88,7 @@ fun QuestlineApp() {
                 TodayScreen(
                     onOpenAllTasks = { navController.navigate("tasks") },
                     onOpenMoney = { navController.navigate("money") },
+                    onOpenMirror = { navController.navigate("mirror") },
                 )
             }
             composable("habits") { HabitsScreen() }
@@ -96,6 +97,7 @@ fun QuestlineApp() {
                 MoneyScreen(
                     onOpenOperations = { navController.navigate("operations") },
                     onOpenStats = { navController.navigate("stats") },
+                    onOpenAssistant = { navController.navigate("assistant") },
                 )
             }
             composable("operations") { OperationsScreen(onBack = { navController.popBackStack() }) }

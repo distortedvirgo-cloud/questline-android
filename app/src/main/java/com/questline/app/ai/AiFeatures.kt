@@ -7,7 +7,7 @@ import com.questline.app.domain.ProgressionEngine
 import org.json.JSONObject
 
 /**
- * AI-фичи: персональный квест дня и совет недели.
+ * AI-фичи: персональный квест дня.
  * Промпты требуют JSON-ответ и валидируют его с белыми списками —
  * ответ модели никогда не попадает в БД без санитизации.
  */
@@ -68,22 +68,6 @@ object AiFeatures {
         AiPrefs.markAiQuestToday(ctx, todayEpochDay)
         return quest
     }
-
-    /** Совет недели по статистике. Возвращает готовый текст (2–3 совета). */
-    suspend fun weekAdvice(ctx: Context, statsSummary: String): String =
-        AiClient.chat(
-            baseUrl = AiPrefs.baseUrl(ctx),
-            apiKey = AiPrefs.apiKey(ctx),
-            model = AiPrefs.model(ctx),
-            messages = listOf(
-                "system" to """
-                    Ты — добрый коуч Questline. По статистике недели пользователя дай 2 коротких
-                    совета (по 1–2 предложения, по-русски, без markdown и без нумерации).
-                    Тон поддерживающий, без стыда и наказаний. Максимум 400 символов.
-                """.trimIndent(),
-                "user" to statsSummary,
-            ),
-        )
 
     private fun sanitizeQuest(raw: String): AiQuest {
         val withoutFence = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()

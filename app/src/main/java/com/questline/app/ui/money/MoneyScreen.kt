@@ -88,7 +88,11 @@ private enum class MoneyTab(val label: String) {
  * FAB «+» — быстрый ввод транзакции.
  */
 @Composable
-fun MoneyScreen(onOpenOperations: () -> Unit = {}, onOpenStats: () -> Unit = {}) {
+fun MoneyScreen(
+    onOpenOperations: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
+    onOpenAssistant: () -> Unit = {},
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: MoneyViewModel = viewModel { MoneyViewModel(AppRepo.get(context)) }
 
@@ -148,6 +152,7 @@ fun MoneyScreen(onOpenOperations: () -> Unit = {}, onOpenStats: () -> Unit = {})
                             when (tab) {
                                 MoneyTab.OPERATIONS -> onOpenOperations()
                                 MoneyTab.STATS -> onOpenStats()
+                                MoneyTab.AI -> onOpenAssistant()
                                 else -> currentTab = tab
                             }
                         },
@@ -164,8 +169,7 @@ fun MoneyScreen(onOpenOperations: () -> Unit = {}, onOpenStats: () -> Unit = {})
                 when (currentTab) {
                     MoneyTab.PLAN -> PlanMonthSection(month, balance, Modifier.fillMaxSize())
                     MoneyTab.GOALS -> GoalsSection(Modifier.fillMaxSize())
-                    MoneyTab.AI -> AiMonthTabContent(month, Modifier.fillMaxSize())
-                    // «Операции»/«Статистика» — отдельные маршруты, здесь контента нет
+                    // «Операции»/«Статистика»/«AI» — отдельные маршруты, здесь контента нет
                     else -> Unit
                 }
             }

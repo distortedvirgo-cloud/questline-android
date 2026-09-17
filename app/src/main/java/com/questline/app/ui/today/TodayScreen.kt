@@ -21,12 +21,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -42,7 +45,7 @@ private const val MAX_TODAY_TASKS = 5
 // ------------------ Экран ------------------
 
 @Composable
-fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
+fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}, onOpenMirror: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = remember { AppRepo.get(context) }
     val vm: TodayViewModel = viewModel(initializer = { TodayViewModel(repo) })
@@ -81,7 +84,10 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         ) {
-            MorningHeader()
+            Row(verticalAlignment = Alignment.Bottom) {
+                MorningHeader(Modifier.weight(1f))
+                MirrorEntry(onOpenMirror)
+            }
             Spacer(Modifier.height(12.dp))
 
             ProgressCard(progress ?: ProgressSnapshot())
@@ -130,5 +136,16 @@ fun TodayScreen(onOpenAllTasks: () -> Unit = {}, onOpenMoney: () -> Unit = {}) {
 
         // Веха стрика: конфетти на весь экран (T-07), поверх скролла.
         MilestoneCelebration(event = milestone, onFinished = { vm.clearMilestone() })
+    }
+}
+
+/** Компактный вход в «Зеркало недели» (T-14) из хедера «Сегодня». */
+@Composable
+private fun MirrorEntry(onOpenMirror: () -> Unit) {
+    TextButton(
+        onClick = onOpenMirror,
+        colors = ButtonDefaults.textButtonColors(contentColor = Q.accent),
+    ) {
+        Text("🪞 Зеркало", style = MaterialTheme.typography.bodyMedium)
     }
 }

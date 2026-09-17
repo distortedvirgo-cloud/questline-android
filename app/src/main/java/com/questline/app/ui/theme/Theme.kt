@@ -36,6 +36,9 @@ data class QColors(
     val warn: Color,
     val danger: Color,
     val coin: Color,
+    val accentLight: Color,
+    val seaMuted: Color,
+    val chartGray: Color,
 )
 
 val LightQ = QColors(
@@ -51,6 +54,9 @@ val LightQ = QColors(
     warn = Color(0xFFC99A3C),
     danger = Color(0xFFC4544A),
     coin = Color(0xFFD9A441),       // монеты; нигде кроме косметики
+    accentLight = Color(0xFF7B86E8), // светло-акцентный (графики, срез 5)
+    seaMuted = Color(0xFF6699A8),   // приглушённый морской (графики, срез 6)
+    chartGray = Color(0xFF8F8F8F),  // нейтральный серый (графики, срез 7)
 )
 
 // Тёплый графит вместо чистого чёрного; акценты осветлены под контраст.
@@ -67,6 +73,9 @@ val DarkQ = QColors(
     warn = Color(0xFFD6B069),
     danger = Color(0xFFDA8078),
     coin = Color(0xFFE2BB59),
+    accentLight = Color(0xFF7B86E8),
+    seaMuted = Color(0xFF6699A8),
+    chartGray = Color(0xFF8F8F8F),
 )
 
 private val LocalQ = staticCompositionLocalOf { LightQ }
@@ -110,6 +119,9 @@ object Q {
     val warn: Color @Composable get() = LocalQ.current.warn
     val danger: Color @Composable get() = LocalQ.current.danger
     val coin: Color @Composable get() = LocalQ.current.coin
+    val accentLight: Color @Composable get() = LocalQ.current.accentLight
+    val seaMuted: Color @Composable get() = LocalQ.current.seaMuted
+    val chartGray: Color @Composable get() = LocalQ.current.chartGray
 }
 
 /** Вся палитра разом — для захвата перед Canvas/DrawScope (там @Composable нельзя). */
