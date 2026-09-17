@@ -35,6 +35,7 @@ import com.questline.app.data.AppRepo
 import com.questline.app.data.CoinsLedger
 import com.questline.app.domain.ProgressionEngine
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.tour.tourTarget
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -68,49 +69,54 @@ fun ProfileScreen(
         Spacer(Modifier.height(12.dp))
 
         // Шапка: уровень и монеты
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.tourTarget("profile_level"),
+        ) {
             StatCard(Modifier.weight(1f), label = "Уровень", value = "${state.level}", sub = "+${state.xpIntoLevel}/${state.xpNeeded?.xpNeeded ?: ProgressionEngine.xpToNext(state.level)} XP")
             StatCard(Modifier.weight(1f), label = "Монеты", value = "${state.coins}", sub = "Копи на темы и рамки")
         }
 
         Spacer(Modifier.height(18.dp))
-        Text("Характеристики", style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.fillMaxWidth().tourTarget("profile_chars")) {
+            Text("Характеристики", style = MaterialTheme.typography.titleMedium)
 
-        Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
 
-        RadarChart(
-            keyXp = state.characteristics,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp),
-            maxValue = 100,
-        )
-
-        Spacer(Modifier.height(14.dp))
-
-        val keysOrdered = listOf("PHYSICS" to "💪 Физика", "MIND" to "🧠 Разум", "MONEY" to "💰 Деньги", "SOCIAL" to "💬 Харизма", "DISCIPLINE" to "🎯 Дисциплина")
-        keysOrdered.forEach { (key, label) ->
-            val value = state.characteristics[key] ?: 0
-            // Шкала абсолютная 0..100: сила сферы, а не относительный XP из квестов
-            val barFraction by animateFloatAsState(targetValue = value / 100f, animationSpec = tween(250), label = key)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.weight(1f))
-                Text("$value%", style = MaterialTheme.typography.labelMedium, color = Q.inkMuted)
-            }
-            Box(
-                Modifier
-                    .padding(top = 4.dp, bottom = 10.dp)
+            RadarChart(
+                keyXp = state.characteristics,
+                modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
-                    .background(Q.surfaceAlt, RoundedCornerShape(3.dp)),
-            ) {
+                    .height(230.dp),
+                maxValue = 100,
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            val keysOrdered = listOf("PHYSICS" to "💪 Физика", "MIND" to "🧠 Разум", "MONEY" to "💰 Деньги", "SOCIAL" to "💬 Харизма", "DISCIPLINE" to "🎯 Дисциплина")
+            keysOrdered.forEach { (key, label) ->
+                val value = state.characteristics[key] ?: 0
+                // Шкала абсолютная 0..100: сила сферы, а не относительный XP из квестов
+                val barFraction by animateFloatAsState(targetValue = value / 100f, animationSpec = tween(250), label = key)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text("$value%", style = MaterialTheme.typography.labelMedium, color = Q.inkMuted)
+                }
                 Box(
                     Modifier
-                        .fillMaxWidth(barFraction.coerceIn(0f, 1f))
+                        .padding(top = 4.dp, bottom = 10.dp)
+                        .fillMaxWidth()
                         .height(6.dp)
-                        .background(Q.accent, RoundedCornerShape(3.dp)),
-                )
+                        .background(Q.surfaceAlt, RoundedCornerShape(3.dp)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(barFraction.coerceIn(0f, 1f))
+                            .height(6.dp)
+                            .background(Q.accent, RoundedCornerShape(3.dp)),
+                    )
+                }
             }
         }
 
@@ -145,16 +151,18 @@ fun ProfileScreen(
         }
 
         Spacer(Modifier.height(18.dp))
-        Text("Меню", style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.fillMaxWidth().tourTarget("profile_menu")) {
+            Text("Меню", style = MaterialTheme.typography.titleMedium)
 
-        Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
 
-        ProfileMenu(
-            onMirror = onNavigateToMirror,
-            onShop = onNavigateToShop,
-            onAssistant = onNavigateToAssistant,
-            onSettings = onNavigateToSettings,
-        )
+            ProfileMenu(
+                onMirror = onNavigateToMirror,
+                onShop = onNavigateToShop,
+                onAssistant = onNavigateToAssistant,
+                onSettings = onNavigateToSettings,
+            )
+        }
     }
 }
 

@@ -43,6 +43,7 @@ import com.questline.app.domain.BudgetQuestEngine
 import com.questline.app.domain.QuestGenerator
 import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.tour.tourTarget
 import com.questline.app.ui.util.ruPlural
 
 private const val MAX_TODAY_TASKS = 5
@@ -116,7 +117,10 @@ fun TodayScreen(
                 Spacer(Modifier.height(10.dp))
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().tourTarget("today_stats"),
+            ) {
                 StatCard(Modifier.weight(1f), emoji = "🔥", value = "${progress?.streakDays ?: 0} ${ruPlural(progress?.streakDays ?: 0, "день", "дня", "дней")}")
                 StatCard(Modifier.weight(1f), emoji = "🪙", value = "$coins ${ruPlural(coins, "монета", "монеты", "монет")}")
             }

@@ -36,6 +36,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.questline.app.data.AppRepo
+import com.questline.app.ui.tour.tourTarget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,6 +109,7 @@ fun MoneyScreen(
                 onClick = { showQuickAdd = true },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.tourTarget("money_quickadd"),
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Быстрый ввод")
             }
@@ -143,7 +145,9 @@ fun MoneyScreen(
             // Табы-чипы секций; скролл, чтобы на узких экранах не терялся «✨ AI»
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .tourTarget("money_tabs"),
             ) {
                 MoneyTab.entries.forEach { tab ->
                     FilterChip(

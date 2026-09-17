@@ -42,6 +42,7 @@ import com.questline.app.data.habits.Habit
 import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.theme.Q
 import com.questline.app.ui.today.MilestoneCelebration
+import com.questline.app.ui.tour.tourTarget
 
 /** Вкладка «Привычки» (T-04): «Сегодня» по расписанию + «Все привычки».
  *  Тап по карточке — экран привычки (N-02); чек-кнопка остаётся отметкой. */
@@ -77,12 +78,12 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
             )
             // Пусто только когда нет и активных, и архивных — иначе архив недоступен
             if (cards.isEmpty() && archived.isEmpty()) {
-                EmptyHint(Modifier.weight(1f))
+                EmptyHint(Modifier.weight(1f).tourTarget("habits_list"))
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 112.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).tourTarget("habits_list"),
                 ) {
                     if (dueToday.isNotEmpty()) {
                         item { SectionHeader("Сегодня") }
@@ -144,7 +145,8 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp)
-                .size(58.dp),
+                .size(58.dp)
+                .tourTarget("habits_add"),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(text = "+", style = MaterialTheme.typography.headlineMedium)

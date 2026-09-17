@@ -51,6 +51,7 @@ fun SettingsScreen(
     onBack: () -> Unit = {},
     onOpenMirror: () -> Unit = {},
     onOpenShop: () -> Unit = {},
+    onStartTour: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(Dispatchers.Main) }
@@ -98,6 +99,7 @@ fun SettingsScreen(
         SectionCard(title = "Ещё") {
             TextButton(onClick = onOpenMirror) { Text("🪞 Зеркало недели") }
             TextButton(onClick = onOpenShop) { Text("🎨 Магазин тем") }
+            TextButton(onClick = onStartTour) { Text("🧭 Показать экскурсию") }
         }
 
         Spacer(Modifier.height(12.dp))

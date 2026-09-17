@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.questline.app.data.AppRepo
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.tour.tourTarget
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -116,6 +117,7 @@ fun MoneyAccountsHeader(repo: AppRepo) {
                 .clip(ACCOUNT_SHAPE)
                 .background(Q.accentSoft)
                 .border(1.dp, Q.accent.copy(alpha = 0.35f), ACCOUNT_SHAPE)
+                .tourTarget("money_balance")
                 .clickable {
                     // С картами общий баланс — сумма остатков, правится только
                     // через карты; без карт — диалог ручного ввода.

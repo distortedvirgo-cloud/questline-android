@@ -36,6 +36,7 @@ import com.questline.app.data.AppRepo
 import com.questline.app.data.Goal
 import com.questline.app.domain.finance.goalPace
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.tour.tourTarget
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -137,7 +138,7 @@ fun GoalsSection(modifier: Modifier = Modifier) {
     var depositing by remember { mutableStateOf<Goal?>(null) }
     var editing by remember { mutableStateOf<Goal?>(null) }
 
-    GoalsScrollColumn(modifier = modifier) {
+    GoalsScrollColumn(modifier = modifier.tourTarget("money_goals")) {
         if (goals.isEmpty()) {
             Text(
                 text = "Копилок нет — накопи на что-то важное",

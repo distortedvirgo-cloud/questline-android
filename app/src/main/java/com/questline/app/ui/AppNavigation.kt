@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -45,6 +46,9 @@ import com.questline.app.ui.settings.SettingsScreen
 import com.questline.app.ui.shop.ShopScreen
 import com.questline.app.ui.tasks.TasksScreen
 import com.questline.app.ui.today.TodayScreen
+import com.questline.app.ui.tour.TourOverlay
+import com.questline.app.ui.tour.rememberTourController
+import com.questline.app.ui.tour.tourTarget
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
@@ -64,14 +68,23 @@ fun QuestlineApp() {
     // Сидирование категорий при первом запуске + онбординг v3 (N-03): только
     // для новой установки с пустой БД; апгрейд с данными закрывается флагом.
     val context = androidx.compose.ui.platform.LocalContext.current
+    val tour = rememberTourController(context)
     var onboarding by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(Unit) {
         val repo = AppRepo.get(context)
         repo.seedIfEmpty()
         onboarding = OnboardingGate.resolve(context, repo)
     }
+    // Автостарт экскурсии: онбординг пройден, тур ещё не отмечен пройденным
+    // (первый запуск после онбординга или после обновления).
+    LaunchedEffect(onboarding) {
+        if (onboarding == false && !tour.isDone()) tour.start()
+    }
     if (onboarding == true) {
-        OnboardingScreen(onFinish = { onboarding = false })
+        OnboardingScreen(onFinish = {
+            onboarding = false
+            tour.start() // тур сразу после онбординга
+        })
         return
     }
     if (onboarding == null) {
@@ -80,7 +93,8 @@ fun QuestlineApp() {
         return
     }
 
-    Scaffold(
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
         // Фон схемы, не прозрачный: под ним окно активности может быть светлым
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -88,7 +102,10 @@ fun QuestlineApp() {
             val hideBar = currentRoute in setOf("settings", "mirror", "shop", "assistant", "operations", "stats") ||
                 currentRoute?.startsWith("habit/") == true
             if (!hideBar) {
-                NavigationBar(containerColor = com.questline.app.ui.theme.Q.surfaceAlt) {
+                NavigationBar(
+                    containerColor = com.questline.app.ui.theme.Q.surfaceAlt,
+                    modifier = Modifier.tourTarget("bottom_nav"),
+                ) {
                 tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = currentRoute == tab.route,
@@ -158,6 +175,11 @@ fun QuestlineApp() {
                     onBack = { navController.popBackStack() },
                     onOpenMirror = { navController.navigate("mirror") },
                     onOpenShop = { navController.navigate("shop") },
+                    onStartTour = {
+                        tour.reset()
+                        tour.start()
+                        navController.popBackStack()
+                    },
                 )
             }
             composable("mirror") {
@@ -166,6 +188,21 @@ fun QuestlineApp() {
             composable("shop") {
                 ShopScreen(onBack = { navController.popBackStack() })
             }
+        }
+        }
+
+        // Экскурсия: поверх всего, включая нижнюю навигацию
+        if (tour.active) {
+            TourOverlay(
+                tour = tour,
+                onSwitchTab = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+            )
         }
     }
 }
