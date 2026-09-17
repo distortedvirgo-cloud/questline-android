@@ -14,8 +14,8 @@ android {
         applicationId = "com.questline.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 24
-        versionName = "3.2.1"
+        versionCode = 25
+        versionName = "3.2.2"
     }
 
     signingConfigs {
@@ -32,6 +32,14 @@ android {
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("stable")
+        }
+        getByName("release") {
+            // Раздаём release-сборку: без debuggable=true антивирусы (в т.ч.
+            // «Антивирус» Сбера) не помечают пакет как отладочный. R8 не включаем:
+            // бэкап на kotlinx.serialization без выверенных keep-правил ломается.
+            signingConfig = signingConfigs.getByName("stable")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
