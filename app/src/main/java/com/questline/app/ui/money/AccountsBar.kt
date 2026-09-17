@@ -236,6 +236,9 @@ fun MoneyAccountsHeader(repo: AppRepo) {
 
     if (showAddCard) {
         AddCardDialog(
+            // Первая карта: префиллим легаси-баланс, чтобы введённые деньги
+            // не «исчезали» из сводки при переходе на карту.
+            prefillBalanceMinor = if (accounts.isEmpty() && legacySet) legacyMinor else null,
             onDismiss = { showAddCard = false },
             onAdd = { name, last4, balanceMinor ->
                 val account = Account(

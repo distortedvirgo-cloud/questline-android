@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,7 +56,8 @@ fun AddTaskSheet(
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         var title by remember(editing?.id) { mutableStateOf(editing?.title.orEmpty()) }
-        var complexity by remember(editing?.id) { mutableStateOf(editing?.complexity ?: "M") }
+        // Для НОВОЙ задачи дефолт «S» (+20 XP); при редактировании — сложность записи
+        var complexity by remember(editing?.id) { mutableStateOf(editing?.complexity ?: "S") }
         var categoryId by remember(editing?.id) { mutableStateOf(editing?.categoryId) }
         var dueEpochDay by remember(editing?.id) { mutableStateOf(editing?.dueEpochDay) }
         var repeatIntervalDays by remember(editing?.id) {
@@ -72,152 +74,159 @@ fun AddTaskSheet(
 
         val today = AppRepo.todayEpochDay
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = if (editing == null) "Новая задача" else "Редактировать",
-                style = MaterialTheme.typography.titleMedium,
-            )
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text("Что нужно сделать?") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Text(
-                text = "Сложность",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("S", "M", "L").forEach { level ->
-                    SelectableChip(
-                        text = level,
-                        selected = complexity == level,
-                        modifier = Modifier.weight(1f),
-                        onClick = { complexity = level },
-                    )
-                }
-            }
-            TaskAiSuggestChip(
-                title = title,
-                categories = categories,
-                onResult = { suggested, suggestedCategoryId ->
-                    complexity = suggested
-                    if (suggestedCategoryId != null) categoryId = suggestedCategoryId
-                },
-            )
-
-            Text(
-                text = "Категория (необязательно)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                categories.forEach { category ->
-                    val label = buildString {
-                        if (category.emoji.isNotEmpty()) append(category.emoji + " ")
-                        append(category.name)
-                    }
-                    SelectableChip(
-                        text = label,
-                        selected = categoryId == category.id,
-                        onClick = {
-                            categoryId = if (categoryId == category.id) null else category.id
-                        },
-                    )
-                }
-            }
-
-            Text(
-                text = "Срок",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectableChip(
-                    text = "Сегодня",
-                    selected = dueEpochDay == today,
-                    onClick = { dueEpochDay = today },
-                    modifier = Modifier.weight(1f),
-                )
-                SelectableChip(
-                    text = "Завтра",
-                    selected = dueEpochDay == today + 1,
-                    onClick = { dueEpochDay = today + 1 },
-                    modifier = Modifier.weight(1f),
-                )
-                SelectableChip(
-                    text = "Без даты",
-                    selected = dueEpochDay == null,
-                    onClick = { dueEpochDay = null },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            // Ближайшая дата выбранного дня недели; если день уже сегодня — сегодня
-            val localToday = LocalDate.now()
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс").forEachIndexed { index, label ->
-                    val target = localToday.plusDays(((index + 1 - localToday.dayOfWeek.value + 7) % 7).toLong())
-                    SelectableChip(
-                        text = label,
-                        selected = dueEpochDay == target.toEpochDay(),
-                        textStyle = MaterialTheme.typography.labelMedium,
-                        textPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f),
-                        onClick = { dueEpochDay = target.toEpochDay() },
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+        // Контентный столбец: скроллящиеся поля сверху + прибитый внизу ряд кнопок,
+        // который не скрывается под клавиатурой (imePadding).
+        Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "Повторять",
-                    style = MaterialTheme.typography.bodyLarge,
+                    text = if (editing == null) "Новая задача" else "Редактировать",
+                    style = MaterialTheme.typography.titleMedium,
                 )
-                Switch(
-                    checked = repeatIntervalDays > 0,
-                    onCheckedChange = { checked -> repeatIntervalDays = if (checked) 1 else 0 },
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = { Text("Что нужно сделать?") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-            }
-            if (repeatIntervalDays > 0) {
+
+                Text(
+                    text = "Сложность",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1 to "1 дн.", 2 to "2 дн.", 3 to "3 дн.", 7 to "7 дн.")
-                        .forEach { (interval, label) ->
-                            SelectableChip(
-                                text = label,
-                                selected = repeatIntervalDays == interval,
-                                modifier = Modifier.weight(1f),
-                                onClick = { repeatIntervalDays = interval },
-                            )
+                    listOf("S", "M", "L").forEach { level ->
+                        SelectableChip(
+                            text = level,
+                            selected = complexity == level,
+                            modifier = Modifier.weight(1f),
+                            onClick = { complexity = level },
+                        )
+                    }
+                }
+                TaskAiSuggestChip(
+                    title = title,
+                    categories = categories,
+                    onResult = { suggested, suggestedCategoryId ->
+                        complexity = suggested
+                        if (suggestedCategoryId != null) categoryId = suggestedCategoryId
+                    },
+                )
+
+                Text(
+                    text = "Категория (необязательно)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    categories.forEach { category ->
+                        val label = buildString {
+                            if (category.emoji.isNotEmpty()) append(category.emoji + " ")
+                            append(category.name)
                         }
+                        SelectableChip(
+                            text = label,
+                            selected = categoryId == category.id,
+                            onClick = {
+                                categoryId = if (categoryId == category.id) null else category.id
+                            },
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Срок",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectableChip(
+                        text = "Сегодня",
+                        selected = dueEpochDay == today,
+                        onClick = { dueEpochDay = today },
+                        modifier = Modifier.weight(1f),
+                    )
+                    SelectableChip(
+                        text = "Завтра",
+                        selected = dueEpochDay == today + 1,
+                        onClick = { dueEpochDay = today + 1 },
+                        modifier = Modifier.weight(1f),
+                    )
+                    SelectableChip(
+                        text = "Без даты",
+                        selected = dueEpochDay == null,
+                        onClick = { dueEpochDay = null },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // Ближайшая дата выбранного дня недели; если день уже сегодня — сегодня
+                val localToday = LocalDate.now()
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс").forEachIndexed { index, label ->
+                        val target = localToday.plusDays(((index + 1 - localToday.dayOfWeek.value + 7) % 7).toLong())
+                        SelectableChip(
+                            text = label,
+                            selected = dueEpochDay == target.toEpochDay(),
+                            textStyle = MaterialTheme.typography.labelMedium,
+                            textPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            modifier = Modifier.weight(1f),
+                            onClick = { dueEpochDay = target.toEpochDay() },
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Повторять",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Switch(
+                        checked = repeatIntervalDays > 0,
+                        onCheckedChange = { checked -> repeatIntervalDays = if (checked) 1 else 0 },
+                    )
+                }
+                if (repeatIntervalDays > 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1 to "1 дн.", 2 to "2 дн.", 3 to "3 дн.", 7 to "7 дн.")
+                            .forEach { (interval, label) ->
+                                SelectableChip(
+                                    text = label,
+                                    selected = repeatIntervalDays == interval,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { repeatIntervalDays = interval },
+                                )
+                            }
+                    }
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            // Нижний постоянный блок с кнопкой: не уезжает при скролле и клавиатуре
             Button(
                 onClick = { onSave(title.trim(), complexity, categoryId, dueEpochDay, repeatIntervalDays) },
                 enabled = title.isNotBlank(),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 12.dp)
+                    .padding(bottom = 28.dp)
                     .height(50.dp),
             ) {
                 Text(if (editing == null) "Добавить" else "Сохранить")

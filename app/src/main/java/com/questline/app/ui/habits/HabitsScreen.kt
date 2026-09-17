@@ -1,12 +1,16 @@
 package com.questline.app.ui.habits
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +55,7 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
         },
     )
     val cards by vm.cards.collectAsStateWithLifecycle()
+    val archived by vm.archived.collectAsStateWithLifecycle()
     val pulse by vm.pulse.collectAsStateWithLifecycle()
     val coins by vm.coins.collectAsStateWithLifecycle()
     val milestone by vm.milestone.collectAsStateWithLifecycle()
@@ -57,6 +63,7 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
     var editorOpen by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Habit?>(null) }
     var archiveTarget by remember { mutableStateOf<Habit?>(null) }
+    var archiveExpanded by remember { mutableStateOf(false) }
 
     val dueToday = cards.filter { HabitEngine.isDue(it.habit, vm.todayEpochDay) }
     val rest = cards.filterNot { HabitEngine.isDue(it.habit, vm.todayEpochDay) }
@@ -68,7 +75,8 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
             )
-            if (cards.isEmpty()) {
+            // Пусто только когда нет и активных, и архивных — иначе архив недоступен
+            if (cards.isEmpty() && archived.isEmpty()) {
                 EmptyHint(Modifier.weight(1f))
             } else {
                 LazyColumn(
@@ -104,6 +112,23 @@ fun HabitsScreen(onOpenDetail: (Long) -> Unit = {}) {
                                 onArchive = { archiveTarget = card.habit },
                                 onFreeze = { vm.freeze(card) },
                             )
+                        }
+                    }
+                    if (archived.isNotEmpty()) {
+                        item(key = "archive_header") {
+                            ArchiveHeader(
+                                count = archived.size,
+                                expanded = archiveExpanded,
+                                onToggle = { archiveExpanded = !archiveExpanded },
+                            )
+                        }
+                        if (archiveExpanded) {
+                            items(archived, key = { "archived-${it.id}" }) { habit ->
+                                ArchivedHabitRow(
+                                    habit = habit,
+                                    onRestore = { vm.unarchive(habit) },
+                                )
+                            }
                         }
                     }
                 }
@@ -169,6 +194,61 @@ private fun SectionHeader(title: String) {
         color = Q.inkMuted,
         modifier = Modifier.padding(top = 8.dp),
     )
+}
+
+/** Заголовок секции «Архив»: по тапу разворачивается список архивных привычек */
+@Composable
+private fun ArchiveHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(top = 8.dp, bottom = 2.dp),
+    ) {
+        Text(
+            text = "Архив ($count)",
+            style = MaterialTheme.typography.titleSmall,
+            color = Q.inkMuted,
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = if (expanded) "▾" else "▸",
+            style = MaterialTheme.typography.titleSmall,
+            color = Q.inkMuted,
+        )
+    }
+}
+
+/** Компактная строка архивной привычки: эмодзи + название + «Вернуть» */
+@Composable
+private fun ArchivedHabitRow(habit: Habit, onRestore: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, Q.border),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        ) {
+            Text(
+                text = habit.emoji.ifEmpty { "🔁" },
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = habit.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Q.inkMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onRestore) { Text("Вернуть") }
+        }
+    }
 }
 
 /** Спокойная пустота без наказания — просто подсказка */

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +44,7 @@ internal fun CardBalanceDialog(
 ) {
     val context = LocalContext.current
     var text by remember(account.id) { mutableStateOf(rublesInput(account.balanceMinor)) }
+    var confirmDelete by remember(account.id) { mutableStateOf(false) }
     val parsed = MoneyFormat.parseRubles(text)
 
     // Другие карты для режима «Перевод своей» (пусто — режим не показываем вовсе).
@@ -53,6 +54,23 @@ internal fun CardBalanceDialog(
     var transferMode by remember(account.id) { mutableStateOf(false) }
     var targetId by remember(account.id) { mutableStateOf<Long?>(null) }
     val target = others.firstOrNull { it.id == targetId }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Удалить карту?") },
+            text = {
+                Text("Карта и её остаток исчезнут из сводки. Действие необратимо.")
+            },
+            confirmButton = {
+                TextButton(onClick = onDelete) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Отмена") }
+            },
+        )
+        return
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -70,9 +88,9 @@ internal fun CardBalanceDialog(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = { confirmDelete = true }) {
                     Icon(
-                        Icons.Filled.Close,
+                        Icons.Filled.Delete,
                         contentDescription = "Удалить карту",
                         tint = Q.accent,
                     )
@@ -180,12 +198,15 @@ private fun SelectableChip(
 /** Диалог добавления карты/счёта: имя (необязательно), 4 цифры (обязательно), баланс (необязательно). */
 @Composable
 internal fun AddCardDialog(
+    prefillBalanceMinor: Long? = null,
     onDismiss: () -> Unit,
     onAdd: (name: String, last4: String, balanceMinor: Long?) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
+    var balance by remember(prefillBalanceMinor) {
+        mutableStateOf(prefillBalanceMinor?.let(::rublesInput) ?: "")
+    }
     val balanceParsed = MoneyFormat.parseRubles(balance)
     val last4Valid = last4.length == 4
 
@@ -225,6 +246,14 @@ internal fun AddCardDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Текущий баланс, ₽ (необязательно)") },
                 )
+                if (prefillBalanceMinor != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Перенесли текущий баланс — правь под реальный остаток",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Q.inkMuted,
+                    )
+                }
             }
         },
         confirmButton = {

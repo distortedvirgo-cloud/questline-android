@@ -58,6 +58,9 @@ class AdviceViewModel(private val repo: AppRepo) : ViewModel() {
     /** Совет на момент нажатия «Взять»: после действия карточка не «прыгает» на новый */
     private val frozenTip = MutableStateFlow<Tip?>(null)
 
+    /** Последний снимок активных привычек — для защиты «Взять» от дублей по названию */
+    private var habitsSnapshot: List<Habit> = emptyList()
+
     val state: StateFlow<AdviceUi> = combine(
         dailyTipFlow(),
         busy.asStateFlow(),
@@ -76,6 +79,7 @@ class AdviceViewModel(private val repo: AppRepo) : ViewModel() {
         repo.txns.observeRange(monthStart, todayEpochDay),
         repo.goals.observeActive(),
     ) { habits, checks, financeCategories, txns, goals ->
+        habitsSnapshot = habits
         NudgeInput(
             habits = habits,
             checks = checks,
@@ -127,8 +131,13 @@ class AdviceViewModel(private val repo: AppRepo) : ViewModel() {
                     TipKind.START_HABIT -> {
                         val starter = AdviceCatalog.parseStarterHabit(tip.payload)
                         if (starter != null) {
-                            repo.upsertHabit(starter.toHabit(todayEpochDay))
-                            confirm(tip, "Взял! Привычка создана")
+                            // Такая привычка уже есть (в т.ч. совет для своей свежей привычки) — не дублируем
+                            if (habitsSnapshot.any { it.title.trim() == starter.title.trim() }) {
+                                confirm(tip, "Уже есть — отметь её!")
+                            } else {
+                                repo.upsertHabit(starter.toHabit(todayEpochDay))
+                                confirm(tip, "Взял! Привычка создана")
+                            }
                         }
                     }
                     TipKind.SHRINK_HABIT -> {

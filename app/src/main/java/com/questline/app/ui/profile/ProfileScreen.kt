@@ -38,6 +38,7 @@ import com.questline.app.ui.theme.Q
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Экран профиля: уровень, монеты, радар 5 характеристик,
@@ -222,7 +223,7 @@ private fun MilestoneBadge(milestone: Int) {
 private fun CoinHistoryRow(entry: CoinsLedger) {
     val time = remember(entry.createdAtMillis) {
         Instant.ofEpochMilli(entry.createdAtMillis).atZone(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("d MMM HH:mm"))
+            .format(DateTimeFormatter.ofPattern("d MMM HH:mm", Locale("ru")))
     }
     Row(
         modifier = Modifier

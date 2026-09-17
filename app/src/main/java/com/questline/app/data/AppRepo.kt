@@ -235,6 +235,15 @@ class AppRepo internal constructor(private val db: QuestlineDatabase) {
         rescheduleReminder(habit.copy(archivedAt = AppRepo.todayEpochDay))
     }
 
+    /** Возврат из архива: снова активна, напоминание при наличии перепланируется. */
+    suspend fun unarchiveHabit(habit: Habit) {
+        habits.unarchive(habit.id)
+        rescheduleReminder(habit.copy(archivedAt = null))
+    }
+
+    /** Архивные привычки (секция «Архив» на экране привычек). */
+    fun observeArchivedHabits(): Flow<List<Habit>> = habits.observeArchived()
+
     /** Полное удаление вместе с отметками; журнал XP не трогаем — история уровня. */
     suspend fun deleteHabit(habitId: Long) {
         habitChecks.deleteForHabit(habitId)

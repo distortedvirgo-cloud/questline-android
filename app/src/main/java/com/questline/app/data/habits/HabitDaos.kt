@@ -19,11 +19,19 @@ interface HabitDao {
     @Query("UPDATE habits SET archivedAt = :epochDay WHERE id = :id")
     suspend fun archive(id: Long, epochDay: Long)
 
+    /** Возврат из архива: снять дату архивации */
+    @Query("UPDATE habits SET archivedAt = NULL WHERE id = :id")
+    suspend fun unarchive(id: Long)
+
     @Query("SELECT * FROM habits ORDER BY id")
     fun observeAll(): Flow<List<Habit>>
 
     @Query("SELECT * FROM habits WHERE archivedAt IS NULL ORDER BY id")
     fun observeActive(): Flow<List<Habit>>
+
+    /** Архивные привычки для секции «Архив» на экране привычек */
+    @Query("SELECT * FROM habits WHERE archivedAt IS NOT NULL ORDER BY id")
+    fun observeArchived(): Flow<List<Habit>>
 
     /** Разовое чтение активных привычек (перепланирование напоминаний N-01) */
     @Query("SELECT * FROM habits WHERE archivedAt IS NULL ORDER BY id")

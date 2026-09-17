@@ -261,7 +261,7 @@ private fun GoalCard(
 /** Строка темпа: цель всегда позитив — без warn/danger, тихо без данных */
 private fun paceText(goal: Goal, paceDays: Long?): String {
     if (goal.status == "DONE") return "Цель достигнута"
-    if (paceDays == null) return "Темп копится"
+    if (paceDays == null) return "Темп: копится"
     return when {
         paceDays < 14L -> "При текущем темпе закроется через ~$paceDays дн"
         paceDays < 365L -> "При текущем темпе закроется через ~${ceil(paceDays / 7.0).toLong()} нед"

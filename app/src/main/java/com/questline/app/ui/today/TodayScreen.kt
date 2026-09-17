@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import com.questline.app.domain.BudgetQuestEngine
 import com.questline.app.domain.QuestGenerator
 import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.util.ruPlural
 
 private const val MAX_TODAY_TASKS = 5
 
@@ -115,8 +117,8 @@ fun TodayScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard(Modifier.weight(1f), emoji = "🔥", value = "${progress?.streakDays ?: 0} дней")
-                StatCard(Modifier.weight(1f), emoji = "🪙", value = "$coins монет")
+                StatCard(Modifier.weight(1f), emoji = "🔥", value = "${progress?.streakDays ?: 0} ${ruPlural(progress?.streakDays ?: 0, "день", "дня", "дней")}")
+                StatCard(Modifier.weight(1f), emoji = "🪙", value = "$coins ${ruPlural(coins, "монета", "монеты", "монет")}")
             }
             Spacer(Modifier.height(10.dp))
             MiniRadarCard(characteristics)
@@ -128,8 +130,11 @@ fun TodayScreen(
                 Text("Квест дня", style = MaterialTheme.typography.titleMedium, color = Q.inkMuted)
                 Spacer(Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // key по id: состояния эффектов не перетекают между квестами при смене списка
                     quests.forEach { quest ->
-                        QuestCard(quest, emoji = keyEmoji[quest.questKey].orEmpty(), busy = quest.id in busyIds, vm = vm)
+                        key(quest.id) {
+                            QuestCard(quest, emoji = keyEmoji[quest.questKey].orEmpty(), busy = quest.id in busyIds, vm = vm)
+                        }
                     }
                 }
             }

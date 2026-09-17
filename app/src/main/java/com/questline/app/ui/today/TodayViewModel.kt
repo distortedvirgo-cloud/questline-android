@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 
 /** Окно квестовой активности для радара характеристик: 30 дней */
@@ -43,12 +44,16 @@ class TodayViewModel(private val repo: AppRepo) : ViewModel() {
 
     private val todayEpochDay: Long = AppRepo.todayEpochDay
 
-    /** Открытые авто-квесты сегодняшнего дня. */
-    val questsOfDay: StateFlow<List<Quest>> = repo.quests.observeOpen()
-        .map { list ->
-            list.filter { (it.source == "AUTO" && it.dateCreatedEpochDay == todayEpochDay) || it.source == "BUDGET" }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Начало сегодняшнего дня в millis — отбор закрытых сегодня квестов. */
+    private val todayStartMillis: Long =
+        LocalDate.ofEpochDay(todayEpochDay).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** Квесты дня: открытые + закрытые сегодня (закрытые рендерятся как выполненные). */
+    val questsOfDay: StateFlow<List<Quest>> =
+        combine(repo.quests.observeOpen(), repo.quests.observeDone()) { open, done ->
+            open.filter { (it.source == "AUTO" && it.dateCreatedEpochDay == todayEpochDay) || it.source == "BUDGET" } +
+                done.filter { (it.closedAtMillis ?: 0L) >= todayStartMillis }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Задачи на сегодня; повторяющиеся в «отдыхе» скрыты, лимит отображения — на экране. */
     val tasksToday: StateFlow<List<Task>> = repo.tasks.observeForToday(todayEpochDay)

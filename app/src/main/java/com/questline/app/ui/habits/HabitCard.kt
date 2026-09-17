@@ -75,7 +75,8 @@ internal fun progressLabel(habit: Habit, value: Double?): String? {
     return if (unit.isEmpty()) head else "$head $unit"
 }
 
-private fun fmt(x: Double): String = if (x % 1.0 == 0.0) x.toLong().toString() else x.toString()
+private fun fmt(x: Double): String =
+    if (x % 1.0 == 0.0) x.toLong().toString() else x.toString().replace('.', ',')
 
 /** Карточка привычки: чек-кнопка, эмодзи в цветном круге, стрик, неделя,
  *  при пропущенном запланированном дне — чип платной заморозки (T-07).

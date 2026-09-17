@@ -49,7 +49,8 @@ data class NudgeInput(
  * T-12 NudgeEngine: оффлайн rule-движок советов, детерминированный по дате
  * (seed = epochDay). Один вызов [dailyTip] на день даёт один и тот же совет.
  *
- * Приоритет правил: (1) буксующая привычка SHRINK → «упрости»; (2) финансовое
+ * Приоритет правил: (1) буксующая привычка SHRINK → «упрости» (свежая без
+ * отметок — START, разгон); (2) финансовое
  * давление FAST/OVER или копилка без пополнений → финансовый совет;
  * (3) слабейшая сфера (консистентность активных сфер < 40% или по ней 0 данных)
  * → стартовая привычка из каталога; (4) GROW ≥90% за 21 день → «усложни»;
@@ -63,6 +64,9 @@ object NudgeEngine {
 
     /** Хвост месяца: последние 2 дня — время плана на следующий месяц. */
     private const val MONTH_END_DAYS = 2
+
+    /** Разгон новой привычки: младше 3 дней без отметок — старт, не буксование. */
+    private const val NEW_HABIT_DAYS = 3L
 
     private val CHAR_TITLES = mapOf(
         "PHYSICS" to "физика",
@@ -112,9 +116,12 @@ object NudgeEngine {
         val diagnosed = input.habits.map { it to HabitEngine.diagnose(it, byHabit[it.id].orEmpty(), input.today) }
         val out = ArrayList<Tip>(3)
 
-        // (1) Буксующая привычка → «упрости»
-        diagnosed.filter { it.second == HabitEngine.Diagnosis.SHRINK }
-            .map { it.first }
+        // (1) Буксующая привычка → «упрости»; созданная недавно без единой
+        // отметки — это ещё не буксование: START вместо SHRINK
+        val shrinking = diagnosed.filter { it.second == HabitEngine.Diagnosis.SHRINK }.map { it.first }
+        val freshNew = shrinking.filter { isFreshUnmarked(it, input.checks, input.today) }
+        freshNew.ifNotEmpty { out += freshStartTip(it.pick(input.today), input.today) }
+        shrinking.filter { it !in freshNew }
             .ifNotEmpty { out += shrinkTip(it.pick(input.today), input.today) }
 
         // (2) Финансовое давление: бюджет FAST/OVER, затем копилка без пополнений
@@ -152,6 +159,29 @@ object NudgeEngine {
         // (7) Ничего не применимо → ротация нейтральных «малых шагов»
         if (out.isEmpty()) out += rotationTip(input, 0)
         return out
+    }
+
+    /** Возраст < NEW_HABIT_DAYS дней и ни одной отметки — старт, а не буксование. */
+    private fun isFreshUnmarked(habit: Habit, checks: List<HabitCheck>, today: Long): Boolean =
+        today - habit.createdAt < NEW_HABIT_DAYS && checks.none { it.habitId == habit.id }
+
+    /** START для только что созданной привычки: тот же TipKind.START_HABIT, что у каталога. */
+    private fun freshStartTip(habit: Habit, today: Long): Tip {
+        val starter = StarterHabit(
+            title = habit.title,
+            emoji = habit.emoji,
+            characteristic = habit.characteristic,
+            complexity = habit.complexity,
+            targetValue = habit.targetValue,
+            unit = habit.unit,
+        )
+        return Tip(
+            id = "START_HABIT-FRESH-${habit.id}-$today",
+            title = "Начни «${habit.title}»",
+            body = "Привычка создана только что. Начни с малого: отметь её 3 дня подряд, потом усложняй.",
+            kind = TipKind.START_HABIT,
+            payload = AdviceCatalog.serialize(starter),
+        )
     }
 
     private fun shrinkTip(habit: Habit, today: Long): Tip {
@@ -260,5 +290,8 @@ object NudgeEngine {
         if (isNotEmpty()) action(this)
     }
 
-    private fun fmt(x: Double): String = if (x % 1.0 == 0.0) x.toLong().toString() else "%.1f".format(x).trimEnd('0').trimEnd('.')
+    /** Разделитель для людей: тексты советов показывают «2,5», не «2.5». */
+    private fun fmt(x: Double): String =
+        if (x % 1.0 == 0.0) x.toLong().toString()
+        else "%.1f".format(x).trimEnd('0').trimEnd('.').replace('.', ',')
 }

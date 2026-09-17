@@ -66,6 +66,10 @@ class HabitsViewModel(private val repo: AppRepo) : ViewModel() {
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Архивные привычки для секции «Архив» (возврат из архива — N>0 в UI) */
+    val archived: StateFlow<List<Habit>> = repo.observeArchivedHabits()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     /**
      * Тап по чеку: без цели — тоггл одним тапом; с целью — +1 к значению дня
      * (кап = цель). Достигнутая цель тапом не снимается — есть долгий тап.
@@ -112,6 +116,11 @@ class HabitsViewModel(private val repo: AppRepo) : ViewModel() {
 
     fun archive(habit: Habit) {
         viewModelScope.launch { repo.archiveHabit(habit) }
+    }
+
+    /** Возврат из архива: снова в активных */
+    fun unarchive(habit: Habit) {
+        viewModelScope.launch { repo.unarchiveHabit(habit) }
     }
 
     fun delete(habitId: Long) {

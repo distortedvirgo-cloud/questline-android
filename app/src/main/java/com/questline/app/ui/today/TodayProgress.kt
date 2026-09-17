@@ -54,11 +54,12 @@ data class ProgressSnapshot(
     val fraction: Float get() = if (xpNeeded <= 0) 0f else xpIntoLevel.toFloat() / xpNeeded
 }
 
-/** Приветствие по времени суток. */
+/** Приветствие по времени суток (ночью — «Доброй ночи»). */
 internal fun dayGreeting(now: LocalTime): String = when (now.hour) {
     in 5..11 -> "Доброе утро"
     in 12..17 -> "Добрый день"
-    else -> "Добрый вечер"
+    in 18..23 -> "Добрый вечер"
+    else -> "Доброй ночи"
 }
 
 /** «17 сентября, среда» — дата дня словами. */

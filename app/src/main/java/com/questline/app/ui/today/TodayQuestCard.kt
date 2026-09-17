@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.questline.app.data.Quest
@@ -42,6 +43,10 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun QuestCard(quest: Quest, emoji: String, busy: Boolean, vm: TodayViewModel) {
+    if (quest.status != "OPEN") {
+        DoneQuestRow(quest, emoji)
+        return
+    }
     val scope = rememberCoroutineScope()
     val burst = rememberQuestBurstState(seed = quest.id)
     var completing by remember { mutableStateOf(false) }
@@ -108,5 +113,34 @@ internal fun QuestCard(quest: Quest, emoji: String, busy: Boolean, vm: TodayView
             },
             state = burst,
         )
+    }
+}
+
+/** Выполненный квест: название (и эмодзи если есть) + ✓ и награда, приглушённый
+ *  тон с зачёркиванием — в стиле уже существующих выполненных элементов.
+ *  Кнопки «Выполнить» здесь нет: закрывать нечего. */
+@Composable
+private fun DoneQuestRow(quest: Quest, emoji: String) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = CARD_SHAPE, colors = cardColors()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (emoji.isNotEmpty()) {
+                Box(Modifier.size(44.dp).clip(CHIP_SHAPE).background(Q.surfaceAlt), contentAlignment = Alignment.Center) {
+                    Text(emoji, fontSize = 20.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    quest.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Q.inkMuted,
+                    textDecoration = TextDecoration.LineThrough,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text("+${quest.xpReward} XP", style = MaterialTheme.typography.bodySmall, color = Q.inkMuted)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("✓", style = MaterialTheme.typography.titleMedium, color = Q.success)
+        }
     }
 }

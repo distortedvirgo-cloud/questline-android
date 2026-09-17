@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -82,120 +83,131 @@ fun HabitEditorSheet(
             (scheduleType != HabitEngine.SCHEDULE_INTERVAL || intervalDays >= 2) &&
             (!hasTarget || (targetParsed != null && targetParsed > 0.0))
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = if (existing == null) "Новая привычка" else "Редактировать",
-                style = MaterialTheme.typography.titleMedium,
-            )
+        // Прибитый низ: кнопка вне скролла, видна и с открытой клавиатурой (imePadding)
+        Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = if (existing == null) "Новая привычка" else "Редактировать",
+                    style = MaterialTheme.typography.titleMedium,
+                )
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text("Например: чтение перед сном") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
-            )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = { Text("Например: чтение перед сном") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
-            FieldLabel("Эмодзи")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(habitEmojiPresets) { preset ->
-                    EmojiPreset(
-                        emoji = preset,
-                        selected = emoji == preset,
-                        onClick = { emoji = preset },
-                    )
+                FieldLabel("Эмодзи")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(habitEmojiPresets) { preset ->
+                        EmojiPreset(
+                            emoji = preset,
+                            selected = emoji == preset,
+                            onClick = { emoji = preset },
+                        )
+                    }
                 }
-            }
 
-            FieldLabel("Характеристика")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                characteristicLabels.forEach { (key, label) ->
-                    SelectableChip(
-                        text = label,
-                        selected = characteristic == key,
-                        onClick = { characteristic = key },
-                    )
+                FieldLabel("Характеристика")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    characteristicLabels.forEach { (key, label) ->
+                        SelectableChip(
+                            text = label,
+                            selected = characteristic == key,
+                            onClick = { characteristic = key },
+                        )
+                    }
                 }
-            }
 
-            FieldLabel("Расписание")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                scheduleSegments.forEach { (key, label) ->
-                    SelectableChip(
-                        text = label,
-                        selected = scheduleType == key,
-                        onClick = { scheduleType = key },
-                    )
+                FieldLabel("Расписание")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    scheduleSegments.forEach { (key, label) ->
+                        SelectableChip(
+                            text = label,
+                            selected = scheduleType == key,
+                            onClick = { scheduleType = key },
+                        )
+                    }
                 }
-            }
-            when (scheduleType) {
-                HabitEngine.SCHEDULE_WEEKDAYS -> WeekdayPicker(weekdaysMask) { weekdaysMask = it }
-                HabitEngine.SCHEDULE_TIMES_PER_WEEK -> TimesPerWeekRow(timesPerWeek) { timesPerWeek = it }
-                HabitEngine.SCHEDULE_INTERVAL -> IntervalRow(intervalDays) { intervalDays = it }
-            }
+                when (scheduleType) {
+                    HabitEngine.SCHEDULE_WEEKDAYS -> {
+                        WeekdayPicker(weekdaysMask) { weekdaysMask = it }
+                        // Реактивная подсказка: что реально выбрано под дефолтом Пн–Пт
+                        Text(
+                            text = weekdaysHint(weekdaysMask),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Q.inkMuted,
+                        )
+                    }
+                    HabitEngine.SCHEDULE_TIMES_PER_WEEK -> TimesPerWeekRow(timesPerWeek) { timesPerWeek = it }
+                    HabitEngine.SCHEDULE_INTERVAL -> IntervalRow(intervalDays) { intervalDays = it }
+                }
 
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(text = "Количественная цель", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "Например: 30 мин, 8 стаканов",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Q.inkMuted,
-                    )
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "Количественная цель", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Например: 30 мин, 8 стаканов",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Q.inkMuted,
+                        )
+                    }
+                    Switch(checked = hasTarget, onCheckedChange = { hasTarget = it })
                 }
-                Switch(checked = hasTarget, onCheckedChange = { hasTarget = it })
-            }
-            if (hasTarget) {
+                if (hasTarget) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = targetText,
+                            onValueChange = { targetText = it },
+                            placeholder = { Text("Число, напр. 30") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = unit,
+                            onValueChange = { unit = it },
+                            placeholder = { Text("мин") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                FieldLabel("Сложность")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = targetText,
-                        onValueChange = { targetText = it },
-                        placeholder = { Text("Число, напр. 30") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = unit,
-                        onValueChange = { unit = it },
-                        placeholder = { Text("мин") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
-                    )
+                    listOf("S" to "S · лёгкая", "M" to "M · средняя", "L" to "L · большая").forEach { (key, label) ->
+                        SelectableChip(
+                            text = label,
+                            selected = complexity == key,
+                            modifier = Modifier.weight(1f),
+                            onClick = { complexity = key },
+                        )
+                    }
                 }
-            }
+                Text(
+                    text = "XP за отметку: +${HabitEngine.xpForHabit(complexity)} · дневной кап +20 XP",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Q.inkMuted,
+                )
 
-            FieldLabel("Сложность")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("S" to "S · лёгкая", "M" to "M · средняя", "L" to "L · большая").forEach { (key, label) ->
-                    SelectableChip(
-                        text = label,
-                        selected = complexity == key,
-                        modifier = Modifier.weight(1f),
-                        onClick = { complexity = key },
-                    )
-                }
+                ReminderField(
+                    minOfDay = reminderMin,
+                    onMinOfDay = { reminderMin = it },
+                )
             }
-            Text(
-                text = "XP за отметку: +${HabitEngine.xpForHabit(complexity)} · дневной кап +20 XP",
-                style = MaterialTheme.typography.labelSmall,
-                color = Q.inkMuted,
-            )
-
-            ReminderField(
-                minOfDay = reminderMin,
-                onMinOfDay = { reminderMin = it },
-            )
 
             Button(
                 onClick = {
@@ -272,5 +284,16 @@ private val scheduleSegments = linkedMapOf(
     HabitEngine.SCHEDULE_INTERVAL to "Каждые N дн",
 )
 
-/** Число цели без хвостовых нулей: 30.0 → «30», 2.5 → «2.5» */
-internal fun fmtValue(x: Double): String = if (x % 1.0 == 0.0) x.toLong().toString() else x.toString()
+/** Число цели без хвостовых нулей, разделитель — запятая: 30.0 → «30», 2.5 → «2,5» */
+internal fun fmtValue(x: Double): String =
+    if (x % 1.0 == 0.0) x.toLong().toString() else x.toString().replace('.', ',')
+
+/** Подсказка по выбранным дням маски: бит 0 = ПН ... бит 6 = ВС */
+internal fun weekdaysHint(mask: Int): String {
+    val days = (0..6).filter { mask and (1 shl it) != 0 }
+    return when {
+        days.size == 7 -> "Выбраны: все дни недели"
+        days.isEmpty() -> "Дни не выбраны"
+        else -> "Выбраны: " + days.joinToString(", ") { weekdayShort[it] }
+    }
+}
