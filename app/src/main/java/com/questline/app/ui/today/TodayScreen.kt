@@ -1,10 +1,10 @@
 package com.questline.app.ui.today
 
 /* Главный экран «Сегодня» v3 — план дня одним скроллом (T-06).
- * Секции сверху вниз: утро-блок (дата/приветствие, уровень/XP-шкала, «Прогресс
- * дня: N/M», стики, мини-радар характеристик T-13), квест дня (карточки v2 с
- * конфетти), совет дня (rule-движок T-12), привычки дня (чеки через
- * repo.checkHabit, XP-полёт, чип заморозки), задачи сегодня с быстрым
+ * Секции сверху вниз: утро-блок (дата/приветствие), привычки дня (чеки через
+ * repo.checkHabit, XP-полёт, чип заморозки), уровень/XP-шкала, «Прогресс
+ * дня: N/M», стики, мини-радар характеристик T-13, квест дня (карточки v2 с
+ * конфетти), совет дня (rule-движок T-12), задачи сегодня с быстрым
  * добавлением, мини-деньги. Компоненты секций — в Today*.kt, состояние — в
  * TodayViewModel.kt. Вехи стрика — полноэкранное празднование
  * MilestoneCelebration (T-07).
@@ -106,16 +106,25 @@ fun TodayScreen(
             }
             Spacer(Modifier.height(12.dp))
 
-            ProgressCard(progress ?: ProgressSnapshot())
-            Spacer(Modifier.height(10.dp))
-            DayProgressRow(done = dayDone, total = dayTotal)
-            Spacer(Modifier.height(10.dp))
+            // Привычки дня (перенесены наверх): главный чек-лист дня сразу
+            // после приветствия. Над ними — мягкая подсказка never-miss-twice (N-04).
+            if (missedTwice) {
+                MissedTwiceHintCard()
+                Spacer(Modifier.height(8.dp))
+            }
+            TodayHabitsSection(habits, checksToday, streaks, freezeOffers, coins, AppRepo.todayEpochDay, vm)
+            Spacer(Modifier.height(20.dp))
 
             // Пустой день новичка: приглашение, не пустота (N-04).
             if (habits.isEmpty() && tasks.isEmpty()) {
                 EmptyTodayInvitation(onOpenHabits)
                 Spacer(Modifier.height(10.dp))
             }
+
+            ProgressCard(progress ?: ProgressSnapshot())
+            Spacer(Modifier.height(10.dp))
+            DayProgressRow(done = dayDone, total = dayTotal)
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -146,15 +155,6 @@ fun TodayScreen(
 
             // Совет дня: rule-советы NudgeEngine по данным пользователя (T-12).
             TodayAdviceCard(onOpenMoney)
-            Spacer(Modifier.height(20.dp))
-
-            // Привычки дня: компактные ряды с чеками (+XP полёт, чип заморозки).
-            // Над ними — мягкая подсказка never-miss-twice (N-04).
-            if (missedTwice) {
-                MissedTwiceHintCard()
-                Spacer(Modifier.height(8.dp))
-            }
-            TodayHabitsSection(habits, checksToday, streaks, freezeOffers, coins, AppRepo.todayEpochDay, vm)
             Spacer(Modifier.height(20.dp))
 
             // Задачи сегодня: чекбоксы v2 + быстрое добавление + «Все задачи ›».

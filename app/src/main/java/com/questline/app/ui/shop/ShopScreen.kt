@@ -23,13 +23,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.questline.app.data.AppRepo
@@ -46,6 +50,10 @@ fun ShopScreen(onBack: () -> Unit) {
 
     val coins by repo.coins.observeTotalCoins().collectAsStateWithLifecycle(initialValue = 0)
     val owned = remember(coins) { ThemeState.ownedSet(context) }
+
+    // Покупка/применение празднуются: вибро-тик и подпись «Куплено и применено ✨»
+    val haptics = LocalHapticFeedback.current
+    var justAppliedId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(containerColor = Q.bg, topBar = { ShopTopBar(onBack) }) { padding ->
         Column(
@@ -68,11 +76,14 @@ fun ShopScreen(onBack: () -> Unit) {
                     coins = coins,
                     owned = owned,
                     isApplied = ThemeState.selectedIndex == index,
+                    justApplied = justAppliedId == theme.id,
                     onChoose = {
                         scope.launch {
                             if (ThemeState.buy(context, theme)) {
                                 ThemeState.selectedIndex = index
                                 ThemeState.persist(context)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                justAppliedId = theme.id
                             }
                         }
                     },
@@ -103,6 +114,7 @@ private fun ThemeCard(
     coins: Int,
     owned: Set<String>,
     isApplied: Boolean,
+    justApplied: Boolean,
     onChoose: () -> Unit,
 ) {
     Row(
@@ -124,7 +136,11 @@ private fun ThemeCard(
             Text(theme.name, style = MaterialTheme.typography.bodyLarge, color = Q.ink)
         }
         when {
-            isApplied -> Text("Применена", color = Q.success, style = MaterialTheme.typography.labelLarge)
+            isApplied -> Text(
+                text = if (justApplied) "Куплено и применено ✨" else "Применена",
+                color = Q.success,
+                style = MaterialTheme.typography.labelLarge,
+            )
             theme.id in owned -> TextButton(onClick = onChoose) { Text("Применить") }
             else -> BuyAction(theme.price, canAfford = coins >= theme.price, onBuy = onChoose)
         }

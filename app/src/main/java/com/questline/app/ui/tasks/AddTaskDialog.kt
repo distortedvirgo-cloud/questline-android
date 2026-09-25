@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +24,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,8 +53,13 @@ fun AddTaskSheet(
     onDismiss: () -> Unit,
     onSave: (title: String, complexity: String, categoryId: Long?, dueEpochDay: Long?, repeatIntervalDays: Int) -> Unit,
 ) {
+    // BACK/тап мимо ловятся здесь: состояние формы живёт внутри контента шторки,
+    // поэтому решение о закрытии принимается после расчёта «грязности» (LaunchedEffect ниже)
+    var closeRequested by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { closeRequested = true },
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
@@ -73,6 +81,15 @@ fun AddTaskSheet(
         }
 
         val today = AppRepo.todayEpochDay
+
+        // Грязная форма: название непустое и отличается от исходного
+        val isDirty = title.isNotBlank() && title != editing?.title.orEmpty()
+
+        LaunchedEffect(closeRequested) {
+            if (!closeRequested) return@LaunchedEffect
+            if (isDirty) confirmDiscard = true else onDismiss()
+            closeRequested = false
+        }
 
         // Контентный столбец: скроллящиеся поля сверху + прибитый внизу ряд кнопок,
         // который не скрывается под клавиатурой (imePadding).
@@ -232,6 +249,20 @@ fun AddTaskSheet(
                 Text(if (editing == null) "Добавить" else "Сохранить")
             }
         }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Не сохранять?") },
+            text = { Text("Введённое пропадёт") },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text("Закрыть без сохранения") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
+            },
+        )
     }
 }
 

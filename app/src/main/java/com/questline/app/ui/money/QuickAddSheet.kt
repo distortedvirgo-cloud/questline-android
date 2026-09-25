@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -22,6 +23,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -30,6 +32,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -76,13 +80,18 @@ class QuickAddViewModel(private val repo: AppRepo) : ViewModel() {
 
 /**
  * Быстрый ввод: сумма, категория (FINANCE), Расход/Доход, необязательная заметка.
- * Сумма вводится в рублях → копейки внутри.
+ * Сумма вводится в рублях → копейки внутри. [onSaved] отдаёт готовый текст
+ * «Записал: −100 ₽ · Продукты» для снекбара на MoneyScreen.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun QuickAddSheet(onDismissRequest: () -> Unit) {
+fun QuickAddSheet(
+    onDismissRequest: () -> Unit,
+    onSaved: (String) -> Unit,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: QuickAddViewModel = viewModel { QuickAddViewModel(AppRepo.get(context)) }
+    val haptics = LocalHapticFeedback.current
 
     val financeCategories by vm.categories.collectAsState()
 
@@ -93,12 +102,16 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
     val accounts = remember { AccountsPrefs.list(context) }
     // Одна карта — атрибутируем автоматически; иначе выбор чипом (необязательный).
     var accountLast4 by remember { mutableStateOf(accounts.singleOrNull()?.last4) }
+    // Диалог «не терять ввод»: BACK и тап мимо ловятся здесь же
+    var confirmDiscard by remember { mutableStateOf(false) }
 
     val amountMinor = MoneyFormat.parseRubles(amountText)
     val canSave = selectedCategoryId != null && amountMinor != null && amountMinor > 0L
+    // Грязная форма: сумма или заметка непустые (исходные пусты — непустое ввода ≠ исходного)
+    val isDirty = amountText.isNotBlank() || noteText.isNotBlank()
 
     ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = { if (isDirty) confirmDiscard = true else onDismissRequest() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
@@ -189,13 +202,22 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
             Button(
                 enabled = canSave,
                 onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val sign = if (isExpense) "−" else "+"
+                    val categoryName = financeCategories
+                        .firstOrNull { it.id == selectedCategoryId }
+                        ?.name.orEmpty()
+                    val message = "Записал: $sign${MoneyFormat.text(amountMinor!!)} · $categoryName"
                     vm.save(
                         type = if (isExpense) "EXPENSE" else "INCOME",
                         categoryId = selectedCategoryId!!,
                         amountMinor = amountMinor!!,
                         note = noteText,
                         accountLast4 = accountLast4,
-                        onDone = onDismissRequest,
+                        onDone = {
+                            onSaved(message)
+                            onDismissRequest()
+                        },
                     )
                 },
                 modifier = Modifier
@@ -211,5 +233,19 @@ fun QuickAddSheet(onDismissRequest: () -> Unit) {
                 )
             }
         }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Не сохранять?") },
+            text = { Text("Введённое пропадёт") },
+            confirmButton = {
+                TextButton(onClick = onDismissRequest) { Text("Закрыть без сохранения") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
+            },
+        )
     }
 }

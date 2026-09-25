@@ -22,8 +22,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +74,18 @@ class MoneyViewModel(private val repo: AppRepo) : ViewModel() {
     fun shiftMonth(deltaMonths: Long) {
         _month.value = _month.value.plusMonths(deltaMonths).withDayOfMonth(1)
     }
+
+    /** Текст последней записанной операции — событие для снекбара экрана */
+    private val _savedMessage = MutableStateFlow<String?>(null)
+    val savedMessage: kotlinx.coroutines.flow.StateFlow<String?> = _savedMessage.asStateFlow()
+
+    fun onOperationSaved(message: String) {
+        _savedMessage.value = message
+    }
+
+    fun consumeSavedMessage() {
+        _savedMessage.value = null
+    }
 }
 
 /** «Операции» и «Статистика» — чипы-маршруты: контент живёт на отдельных экранах */
@@ -103,7 +118,20 @@ fun MoneyScreen(
     var currentTab by remember { mutableStateOf(MoneyTab.PLAN) }
     var showQuickAdd by remember { mutableStateOf(false) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Снекбар «Записал: −100 ₽ · Продукты» — событие приходит после сохранения в шторке
+    LaunchedEffect(Unit) {
+        vm.savedMessage.collect { message ->
+            if (message != null) {
+                snackbarHostState.showSnackbar(message)
+                vm.consumeSavedMessage()
+            }
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showQuickAdd = true },
@@ -181,7 +209,10 @@ fun MoneyScreen(
     }
 
     if (showQuickAdd) {
-        QuickAddSheet(onDismissRequest = { showQuickAdd = false })
+        QuickAddSheet(
+            onDismissRequest = { showQuickAdd = false },
+            onSaved = { message -> vm.onOperationSaved(message) },
+        )
     }
 }
 

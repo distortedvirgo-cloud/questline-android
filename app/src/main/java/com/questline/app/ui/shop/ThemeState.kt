@@ -19,7 +19,7 @@ object ThemeState {
 
     val themes = listOf(
         AccentTheme("indigo", "Индиго", 0xFF4A5FD9, 0),
-        AccentTheme("emerald", "Изумруд", 0xFF3D8B5F, 150),
+        AccentTheme("emerald", "Изумруд", 0xFF3D8B5F, 30),
         AccentTheme("amber", "Янтарь", 0xFFC99A3C, 150),
         AccentTheme("crimson", "Багряный", 0xFFC4544A, 150),
     )

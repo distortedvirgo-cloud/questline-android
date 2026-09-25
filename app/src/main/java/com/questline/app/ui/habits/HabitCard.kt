@@ -30,11 +30,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +46,8 @@ import com.questline.app.data.habits.Habit
 import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.money.colorForIndex
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.today.QuestCompletionOverlay
+import com.questline.app.ui.today.rememberQuestBurstState
 
 /* Подписи, общие для карточки и редактора */
 internal val weekdayShort = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
@@ -93,52 +99,83 @@ internal fun HabitCard(
     onArchive: () -> Unit,
     onFreeze: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, Q.border),
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onOpenDetail, onLongClick = onArchive),
-    ) {
-        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(contentAlignment = Alignment.Center) {
-                    HabitCheckButton(
-                        card = card,
-                        onClick = onCheck,
-                        onLongClick = onUncheck,
-                    )
-                    XpPulseText(pulse)
+    // Празднование как в «Сегодня»: конфетти QuestEffects поверх карточки
+    // («+XP» отдельно рисует XpPulseText, поэтому xpText у оверлея пустой)
+    val burst = rememberQuestBurstState(seed = card.habit.id * 31 + 7)
+    var completing by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+
+    Box(Modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, Q.border),
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onOpenDetail, onLongClick = onArchive),
+        ) {
+            Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(contentAlignment = Alignment.Center) {
+                        HabitCheckButton(
+                            card = card,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val target = card.habit.targetValue
+                                // Конфетти — только когда тап реально закрывает привычку
+                                val completes = when {
+                                    completing || card.doneToday -> false
+                                    target == null -> true
+                                    else -> (card.todayCheck?.value ?: 0.0) + 1.0 >= target
+                                }
+                                if (completes) completing = true
+                                onCheck()
+                            },
+                            onLongClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onUncheck()
+                            },
+                        )
+                        XpPulseText(pulse)
+                    }
+                    Spacer(Modifier.size(12.dp))
+                    EmojiCircle(emoji = card.habit.emoji, colorIndex = card.habit.colorIndex)
+                    Spacer(Modifier.size(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = card.habit.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = metaLine(card),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Q.inkMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.size(8.dp))
+                    StreakBadge(card.streakCurrent)
                 }
-                Spacer(Modifier.size(12.dp))
-                EmojiCircle(emoji = card.habit.emoji, colorIndex = card.habit.colorIndex)
-                Spacer(Modifier.size(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = card.habit.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = metaLine(card),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Q.inkMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.size(8.dp))
-                StreakBadge(card.streakCurrent)
-            }
-            Spacer(Modifier.height(8.dp))
-            WeekBar(card.weekConsistency)
-            if (card.freezeDay != null) {
                 Spacer(Modifier.height(8.dp))
-                FreezeChip(canAfford = canFreeze, onConfirm = onFreeze)
+                WeekBar(card.weekConsistency)
+                if (card.freezeDay != null) {
+                    Spacer(Modifier.height(8.dp))
+                    FreezeChip(canAfford = canFreeze, onConfirm = onFreeze)
+                }
             }
+        }
+        // matchParentSize: разлёт из центра карточки, размер Box не раздувает
+        Box(Modifier.matchParentSize()) {
+            QuestCompletionOverlay(
+                visible = completing,
+                xpText = "",
+                onFinished = { completing = false },
+                state = burst,
+            )
         }
     }
 }

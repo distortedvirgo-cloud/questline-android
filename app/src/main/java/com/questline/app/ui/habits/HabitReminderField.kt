@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,6 +63,12 @@ internal fun ReminderField(
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = Q.inkMuted,
+                // Подпись с временем кликабельна: открывает тот же пикер, что и кнопка ниже
+                modifier = if (minOfDay != null) {
+                    Modifier.clickable { showPicker = true }
+                } else {
+                    Modifier
+                },
             )
         }
         Switch(

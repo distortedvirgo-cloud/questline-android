@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.questline.app.data.AppRepo
@@ -167,7 +168,17 @@ internal fun StatCard(modifier: Modifier = Modifier, emoji: String, value: Strin
     }
 }
 
-/** Мини-радар характеристик v3 (T-13): тот же RadarChart, компактный, без подписей. */
+/** Русские подписи сфер — в порядке осей RadarChart (PHYSICS сверху, дальше по часовой). */
+private val SPHERE_LABELS = linkedMapOf(
+    "PHYSICS" to "Физика",
+    "MIND" to "Разум",
+    "MONEY" to "Деньги",
+    "SOCIAL" to "Харизма",
+    "DISCIPLINE" to "Дисциплина",
+)
+
+/** Мини-радар характеристик v3 (T-13): тот же RadarChart, компактный;
+ *  подписи сфер — строкой под радаром, мелким приглушённым стилем. */
 @Composable
 internal fun MiniRadarCard(characteristics: Map<String, Int>) {
     OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = CARD_SHAPE, colors = cardColors()) {
@@ -184,6 +195,20 @@ internal fun MiniRadarCard(characteristics: Map<String, Int>) {
                     .height(120.dp),
                 maxValue = 100,
             )
+            // Подписи только тех сфер, что пришли в карточку, в порядке осей радара.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SPHERE_LABELS.forEach { (key, label) ->
+                    if (key in characteristics) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Q.inkMuted,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -17,23 +17,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,8 +49,13 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.questline.app.data.AppRepo
 import com.questline.app.data.habits.Habit
+import com.questline.app.domain.habits.HabitEngine
 import com.questline.app.ui.money.colorForIndex
 import com.questline.app.ui.theme.Q
+import com.questline.app.ui.today.MilestoneCelebration
+import com.questline.app.ui.today.QuestCompletionOverlay
+import com.questline.app.ui.today.isHabitDoneToday
+import kotlinx.coroutines.launch
 
 /** Экран привычки: детали, heatmap, действия (N-02) */
 @Composable
@@ -66,31 +79,79 @@ fun HabitDetailScreen(habitId: Long, onBack: () -> Unit) {
         }
     }
 
-    Column(
+    // Отметка из деталей идёт тем же путём, что из списка, — repo.checkHabit —
+    // и празднует так же: вибро-тик, «+XP»-полёт, конфетти и веха стрика.
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val repo = remember { AppRepo.get(context) }
+    var completing by remember { mutableStateOf(false) }
+    var xpText by remember { mutableStateOf("") }
+    var milestone by remember { mutableStateOf<HabitMilestonePulse?>(null) }
+    var milestoneSeq by remember { mutableStateOf(0L) }
+    var screenTopLeft by remember { mutableStateOf(Offset.Zero) }
+    var buttonCenter by remember { mutableStateOf(Offset.Zero) }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+            .onGloballyPositioned { screenTopLeft = it.boundsInWindow().topLeft },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 16.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 16.dp),
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
+                }
+                Text(text = "Привычка", style = MaterialTheme.typography.titleLarge)
             }
-            Text(text = "Привычка", style = MaterialTheme.typography.titleLarge)
-        }
 
-        ui?.let { state ->
-            HabitHeader(habit = state.habit, modifier = Modifier.padding(horizontal = 16.dp))
-            MetricsRow(
-                state = state,
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 16.dp),
-            )
+            ui?.let { state ->
+                HabitHeader(habit = state.habit, modifier = Modifier.padding(horizontal = 16.dp))
+                MetricsRow(
+                    state = state,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 16.dp),
+                )
 
-            DetailSection(
+                val todayCheck = state.checks.firstOrNull { it.epochDay == vm.todayEpochDay }
+                CheckTodayButton(
+                    done = isHabitDoneToday(state.habit, todayCheck),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 12.dp)
+                        .onGloballyPositioned { buttonCenter = it.boundsInWindow().center },
+                    onCheck = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        scope.launch {
+                            // Количественная — +1 за тап, как из списка; простая — без значения
+                            val habit = state.habit
+                            val value = habit.targetValue
+                                ?.let { (todayCheck?.value ?: 0.0) + 1.0 }
+                            val result = repo.checkHabit(habit, vm.todayEpochDay, value)
+                            xpText = if (result.awardedXp > 0) "+${result.awardedXp} XP" else ""
+                            completing = true
+                            result.milestone?.let { m ->
+                                milestoneSeq += 1
+                                milestone = HabitMilestonePulse(
+                                    habitId = habit.id,
+                                    streak = m,
+                                    coins = HabitEngine.milestoneCoinBonus(m),
+                                    seq = milestoneSeq,
+                                )
+                            }
+                        }
+                    },
+                )
+
+                DetailSection(
                 title = "Последние 18 недель",
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
@@ -150,7 +211,19 @@ fun HabitDetailScreen(habitId: Long, onBack: () -> Unit) {
                     onClick = { archiveOpen = true },
                 )
             }
-            Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+
+        // Празднование: конфетти с «+XP» от кнопки и веха стрика на весь экран
+        Box(Modifier.matchParentSize()) {
+            QuestCompletionOverlay(
+                visible = completing,
+                xpText = xpText,
+                origin = buttonCenter - screenTopLeft,
+                onFinished = { completing = false },
+            )
+            MilestoneCelebration(event = milestone, onFinished = { milestone = null })
         }
     }
 
@@ -184,6 +257,36 @@ fun HabitDetailScreen(habitId: Long, onBack: () -> Unit) {
                     onBack()
                 },
                 onDismiss = { archiveOpen = false },
+            )
+        }
+    }
+}
+
+/** Главная кнопка экрана: акцентная «Отметить сегодня»;
+ *  привычка уже отмечена — неактивная «Отмечено ✓» */
+@Composable
+private fun CheckTodayButton(
+    done: Boolean,
+    modifier: Modifier = Modifier,
+    onCheck: () -> Unit,
+) {
+    Surface(
+        onClick = onCheck,
+        enabled = !done,
+        shape = RoundedCornerShape(12.dp),
+        color = if (done) Q.surfaceAlt else Q.accent,
+        modifier = modifier,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+        ) {
+            Text(
+                text = if (done) "Отмечено ✓" else "Отметить сегодня",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (done) Q.inkMuted else MaterialTheme.colorScheme.onPrimary,
             )
         }
     }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,8 +55,13 @@ fun HabitEditorSheet(
     onArchive: (Habit) -> Unit,
     onDelete: (Habit) -> Unit,
 ) {
+    // BACK/тап мимо ловятся здесь: состояние формы живёт внутри контента шторки,
+    // поэтому решение о закрытии принимается после расчёта «грязности» (LaunchedEffect ниже)
+    var closeRequested by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { closeRequested = true },
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -82,6 +89,23 @@ fun HabitEditorSheet(
             (scheduleType != HabitEngine.SCHEDULE_WEEKDAYS || weekdaysMask != 0) &&
             (scheduleType != HabitEngine.SCHEDULE_INTERVAL || intervalDays >= 2) &&
             (!hasTarget || (targetParsed != null && targetParsed > 0.0))
+
+        // Грязная форма: имя непустое и изменилось, либо менялись расписание,
+        // сложность, эмодзи или напоминание (сравнение с исходными значениями)
+        val isDirty = (title.isNotBlank() && title != existing?.title.orEmpty()) ||
+            emoji != (existing?.emoji ?: habitEmojiPresets.first()) ||
+            scheduleType != (existing?.scheduleType ?: HabitEngine.SCHEDULE_DAILY) ||
+            weekdaysMask != (existing?.weekdaysMask ?: 31) ||
+            timesPerWeek != (existing?.timesPerWeek?.takeIf { it > 0 } ?: 3) ||
+            intervalDays != (existing?.intervalDays?.takeIf { it > 0 } ?: 3) ||
+            complexity != (existing?.complexity ?: "M") ||
+            reminderMin != existing?.reminderMinOfDay
+
+        LaunchedEffect(closeRequested) {
+            if (!closeRequested) return@LaunchedEffect
+            if (isDirty) confirmDiscard = true else onDismiss()
+            closeRequested = false
+        }
 
         // Прибитый низ: кнопка вне скролла, видна и с открытой клавиатурой (imePadding)
         Column(modifier = Modifier.fillMaxWidth().imePadding()) {
@@ -271,6 +295,21 @@ fun HabitEditorSheet(
                 onDismiss = { confirm = null },
             )
             null -> Unit
+        }
+
+        if (confirmDiscard) {
+            AlertDialog(
+                shape = RoundedCornerShape(16.dp),
+                onDismissRequest = { confirmDiscard = false },
+                title = { Text("Не сохранять?") },
+                text = { Text("Введённое пропадёт") },
+                confirmButton = {
+                    TextButton(onClick = onDismiss) { Text("Закрыть без сохранения") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
+                },
+            )
         }
     }
 }
