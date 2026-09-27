@@ -7,6 +7,7 @@ import com.questline.app.data.HabitCheckResult
 import com.questline.app.data.habits.Habit
 import com.questline.app.data.habits.HabitCheck
 import com.questline.app.domain.habits.HabitEngine
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+
+/** Сколько живёт пульс «+N XP»: длина анимации XpPulseText на карточке */
+private const val PULSE_LIFETIME_MS = 700L
 
 /**
  * Экран «Привычки» (T-04): активные привычки, отметки, стрики, недельная
@@ -129,7 +133,14 @@ class HabitsViewModel(private val repo: AppRepo) : ViewModel() {
 
     private fun emitPulse(habitId: Long, xp: Int) {
         if (xp <= 0) return
-        _pulse.value = HabitXpPulse(habitId, xp, ++pulseSeq)
+        val seq = ++pulseSeq
+        _pulse.value = HabitXpPulse(habitId, xp, seq)
+        // Пульс одноразовый: после проигрывания анимации гасим событие, чтобы
+        // старый seq не висел в стейте (и не переигрывался при пересборке экрана)
+        viewModelScope.launch {
+            delay(PULSE_LIFETIME_MS)
+            if (_pulse.value?.seq == seq) _pulse.value = null
+        }
     }
 
     /** XP-пульс + событие вехи стрика по итогу отметки (T-07) */

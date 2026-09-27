@@ -73,7 +73,7 @@ object AiFeatures {
         val withoutFence = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val json = JSONObject(withoutFence)
         val title = json.optString("title").trim().take(60)
-        require(title.isNotEmpty()) { "Пустой заголовок от модели" }
+        require(title.isNotEmpty()) { "Коуч не придумал название" }
         val key = json.optString("questKey", "DISCIPLINE").uppercase()
         val complexity = json.optString("complexity", "M").uppercase()
         return AiQuest(

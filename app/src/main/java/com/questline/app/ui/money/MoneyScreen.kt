@@ -1,6 +1,5 @@
 package com.questline.app.ui.money
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -118,6 +120,9 @@ fun MoneyScreen(
     var currentTab by remember { mutableStateOf(MoneyTab.PLAN) }
     var showQuickAdd by remember { mutableStateOf(false) }
 
+    // Вход на корневую вкладку «Деньги» всегда открывает «План», а не последнюю под-вкладку
+    LaunchedEffect(Unit) { currentTab = MoneyTab.PLAN }
+
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Снекбар «Записал: −100 ₽ · Продукты» — событие приходит после сохранения в шторке
@@ -170,14 +175,18 @@ fun MoneyScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Табы-чипы секций; скролл, чтобы на узких экранах не терялся «✨ AI»
-            Row(
+            // Под-вкладки: ленивый ряд — палец прокручивает в обе стороны,
+            // выбранная вкладка автопрокручивается в зону видимости
+            val tabsListState = rememberLazyListState()
+            LaunchedEffect(currentTab) {
+                tabsListState.animateScrollToItem(currentTab.ordinal)
+            }
+            LazyRow(
+                state = tabsListState,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .tourTarget("money_tabs"),
+                modifier = Modifier.tourTarget("money_tabs"),
             ) {
-                MoneyTab.entries.forEach { tab ->
+                items(MoneyTab.entries) { tab ->
                     FilterChip(
                         selected = currentTab == tab,
                         onClick = {

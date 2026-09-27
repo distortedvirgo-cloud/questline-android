@@ -187,9 +187,9 @@ object NudgeEngine {
     private fun shrinkTip(habit: Habit, today: Long): Tip {
         val body = if (habit.targetValue != null) {
             val full = fmt(habit.targetValue!!)
-            "«${habit.title}» получается меньше чем в 40% дней. Сделай вдвое меньше — ${fmt(habit.targetValue!! / 2)} ${habit.unit.orEmpty()} вместо $full — и закрепи привычку: половина плана — уже успех."
+            "«${habit.title}» получается меньше, чем в 40% дней. Сделай вдвое меньше — ${fmt(habit.targetValue!! / 2)} ${habit.unit.orEmpty()} вместо $full — и закрепи привычку: половина плана — уже успех."
         } else {
-            "«${habit.title}» получается меньше чем в 40% дней. Сделай шаг меньше: половина нормы или лёгкий вариант. Сейчас важен не результат, а вернуть ритм."
+            "«${habit.title}» получается меньше, чем в 40% дней. Сделай шаг меньше: половина нормы или лёгкий вариант. Сейчас важен не результат, а ритм."
         }
         return Tip("SHRINK_HABIT-${habit.id}-$today", "Упрости «${habit.title}»", body, TipKind.SHRINK_HABIT, habit.id.toString())
     }
@@ -197,7 +197,7 @@ object NudgeEngine {
     private fun financeOverTip(pressure: BudgetPressure, today: Long): Tip = Tip(
         "FINANCE-OVER-${pressure.categoryName}-$today",
         "План «${pressure.categoryName}» пробит",
-        "Категория уже ушла за месячный лимит. Мера до конца месяца: без покупок из этой категории, а траты записывай сразу — видно, что разгружать.",
+        "Категория уже ушла за месячный лимит. Правило до конца месяца: без покупок из этой категории, а траты записывай сразу — видно, что разгружать.",
         TipKind.FINANCE,
         pressure.categoryName,
     )
@@ -205,7 +205,7 @@ object NudgeEngine {
     private fun financeFastTip(pressure: BudgetPressure, today: Long): Tip = Tip(
         "FINANCE-FAST-${pressure.categoryName}-$today",
         "Тратишь по «${pressure.categoryName}» быстрее плана",
-        "Темп выше плана на ${pressure.overspendPercent} п.п. Мера на неделю: дневной лимит по этой категории — сверяйся с ним перед каждой тратой.",
+        "Темп выше плана на ${pressure.overspendPercent}%. Правило на неделю: дневной лимит по этой категории — сверяйся с ним перед каждой тратой.",
         TipKind.FINANCE,
         pressure.categoryName,
     )

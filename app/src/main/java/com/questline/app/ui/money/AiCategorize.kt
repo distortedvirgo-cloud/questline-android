@@ -53,7 +53,7 @@ suspend fun aiSuggestCategoryId(
 private fun parseCategoryResponse(raw: String, categories: List<Category>): Long? {
     val start = raw.indexOf('{')
     val end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) error("JSON не найден в ответе модели")
+    if (start < 0 || end <= start) error("Коуч ответил не по формату, попробуй ещё раз")
     val parsed = aiCategorizeJson.decodeFromString<Map<String, JsonElement>>(raw.substring(start, end + 1))
 
     val name = (parsed["category"] as? JsonPrimitive)

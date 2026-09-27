@@ -194,11 +194,11 @@ private fun TrendBars(bars: List<TrendBar>) {
     }
 }
 
-/** «Среднее траты в день» одной строкой с моноширинной суммой */
+/** «Средние траты в день» одной строкой с моноширинной суммой */
 @Composable
 private fun AverageRow(avgMinor: Long) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Среднее траты в день", style = MaterialTheme.typography.bodyMedium)
+        Text("Средние траты в день", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.weight(1f))
         Text(
             text = MoneyFormat.text(avgMinor),

@@ -61,7 +61,7 @@ internal fun WeekSummaryCard(summary: WeekSummary) {
 
 private fun burnLabel(summary: WeekSummary): String = when (summary.burn.status) {
     BurnRate.Status.OVER -> "план пробит"
-    BurnRate.Status.FAST -> "быстрее плана на ${summary.burn.overspendPercent} п.п."
+    BurnRate.Status.FAST -> "быстрее плана на ${summary.burn.overspendPercent}%"
     BurnRate.Status.CALM -> "спокойный"
 }
 

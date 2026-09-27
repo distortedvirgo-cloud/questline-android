@@ -183,14 +183,18 @@ fun HabitDetailScreen(habitId: Long, onBack: () -> Unit) {
                     .padding(top = 4.dp),
             )
 
-            FreezeTodayButton(
-                enabled = state.canFreezeToday,
-                onConfirm = { vm.freezeToday() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 20.dp),
-            )
+            // Чип заморозки скрыт, пока сегодняшний день уже отмечен:
+            // задизейбленный чип здесь — мёртвый тап
+            if (todayCheck == null) {
+                FreezeTodayButton(
+                    enabled = state.canFreezeToday,
+                    onConfirm = { vm.freezeToday() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 20.dp),
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier

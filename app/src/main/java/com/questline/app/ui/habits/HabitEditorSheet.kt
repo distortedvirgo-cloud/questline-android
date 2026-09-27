@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -16,10 +17,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -27,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,230 +56,71 @@ fun HabitEditorSheet(
     onArchive: (Habit) -> Unit,
     onDelete: (Habit) -> Unit,
 ) {
-    // BACK/тап мимо ловятся здесь: состояние формы живёт внутри контента шторки,
-    // поэтому решение о закрытии принимается после расчёта «грязности» (LaunchedEffect ниже)
-    var closeRequested by remember { mutableStateOf(false) }
+    // Состояние формы объявлено НАД шторкой (образец — QuickAddSheet):
+    // onDismissRequest сам решает — панель «Не сохранять?» или закрытие.
+    // Никаких посредников между dismiss шторки и решением.
+    var title by remember(existing?.id) { mutableStateOf(existing?.title.orEmpty()) }
+    var emoji by remember(existing?.id) { mutableStateOf(existing?.emoji ?: habitEmojiPresets.first()) }
+    var characteristic by remember(existing?.id) { mutableStateOf(existing?.characteristic ?: "DISCIPLINE") }
+    var scheduleType by remember(existing?.id) {
+        mutableStateOf(existing?.scheduleType ?: HabitEngine.SCHEDULE_DAILY)
+    }
+    var weekdaysMask by remember(existing?.id) { mutableStateOf(existing?.weekdaysMask ?: 31) }
+    var timesPerWeek by remember(existing?.id) { mutableStateOf(existing?.timesPerWeek?.takeIf { it > 0 } ?: 3) }
+    var intervalDays by remember(existing?.id) { mutableStateOf(existing?.intervalDays?.takeIf { it > 0 } ?: 3) }
+    var hasTarget by remember(existing?.id) { mutableStateOf(existing?.targetValue != null) }
+    var targetText by remember(existing?.id) {
+        mutableStateOf(existing?.targetValue?.let { fmtValue(it) }.orEmpty())
+    }
+    var unit by remember(existing?.id) { mutableStateOf(existing?.unit.orEmpty()) }
+    var complexity by remember(existing?.id) { mutableStateOf(existing?.complexity ?: "M") }
+    var reminderMin by remember(existing?.id) { mutableStateOf(existing?.reminderMinOfDay) }
     var confirmDiscard by remember { mutableStateOf(false) }
 
+    val targetParsed = if (hasTarget) targetText.replace(',', '.').toDoubleOrNull() else null
+    val valid = title.isNotBlank() &&
+        (scheduleType != HabitEngine.SCHEDULE_WEEKDAYS || weekdaysMask != 0) &&
+        (scheduleType != HabitEngine.SCHEDULE_INTERVAL || intervalDays >= 2) &&
+        (!hasTarget || (targetParsed != null && targetParsed > 0.0))
+
+    // Грязная форма: менялись имя, расписание, сложность, эмодзи, напоминание
+    // или количественная цель (сравнение с исходными значениями)
+    val targetInitial = existing?.targetValue?.let { fmtValue(it) }.orEmpty()
+    val isDirty = (title.isNotBlank() && title != existing?.title.orEmpty()) ||
+        emoji != (existing?.emoji ?: habitEmojiPresets.first()) ||
+        scheduleType != (existing?.scheduleType ?: HabitEngine.SCHEDULE_DAILY) ||
+        weekdaysMask != (existing?.weekdaysMask ?: 31) ||
+        timesPerWeek != (existing?.timesPerWeek?.takeIf { it > 0 } ?: 3) ||
+        intervalDays != (existing?.intervalDays?.takeIf { it > 0 } ?: 3) ||
+        complexity != (existing?.complexity ?: "M") ||
+        reminderMin != existing?.reminderMinOfDay ||
+        hasTarget != (existing?.targetValue != null) ||
+        (hasTarget && (targetText != targetInitial || unit != existing?.unit.orEmpty()))
+
     ModalBottomSheet(
-        onDismissRequest = { closeRequested = true },
+        onDismissRequest = { if (isDirty) confirmDiscard = true else onDismiss() },
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        var title by remember(existing?.id) { mutableStateOf(existing?.title.orEmpty()) }
-        var emoji by remember(existing?.id) { mutableStateOf(existing?.emoji ?: habitEmojiPresets.first()) }
-        var characteristic by remember(existing?.id) { mutableStateOf(existing?.characteristic ?: "DISCIPLINE") }
-        var scheduleType by remember(existing?.id) {
-            mutableStateOf(existing?.scheduleType ?: HabitEngine.SCHEDULE_DAILY)
-        }
-        var weekdaysMask by remember(existing?.id) { mutableStateOf(existing?.weekdaysMask ?: 31) }
-        var timesPerWeek by remember(existing?.id) { mutableStateOf(existing?.timesPerWeek?.takeIf { it > 0 } ?: 3) }
-        var intervalDays by remember(existing?.id) { mutableStateOf(existing?.intervalDays?.takeIf { it > 0 } ?: 3) }
-        var hasTarget by remember(existing?.id) { mutableStateOf(existing?.targetValue != null) }
-        var targetText by remember(existing?.id) {
-            mutableStateOf(existing?.targetValue?.let { fmtValue(it) }.orEmpty())
-        }
-        var unit by remember(existing?.id) { mutableStateOf(existing?.unit.orEmpty()) }
-        var complexity by remember(existing?.id) { mutableStateOf(existing?.complexity ?: "M") }
-        var reminderMin by remember(existing?.id) { mutableStateOf(existing?.reminderMinOfDay) }
         var confirm by remember { mutableStateOf<ConfirmKind?>(null) }
-
-        val targetParsed = if (hasTarget) targetText.replace(',', '.').toDoubleOrNull() else null
-        val valid = title.isNotBlank() &&
-            (scheduleType != HabitEngine.SCHEDULE_WEEKDAYS || weekdaysMask != 0) &&
-            (scheduleType != HabitEngine.SCHEDULE_INTERVAL || intervalDays >= 2) &&
-            (!hasTarget || (targetParsed != null && targetParsed > 0.0))
-
-        // Грязная форма: имя непустое и изменилось, либо менялись расписание,
-        // сложность, эмодзи или напоминание (сравнение с исходными значениями)
-        val isDirty = (title.isNotBlank() && title != existing?.title.orEmpty()) ||
-            emoji != (existing?.emoji ?: habitEmojiPresets.first()) ||
-            scheduleType != (existing?.scheduleType ?: HabitEngine.SCHEDULE_DAILY) ||
-            weekdaysMask != (existing?.weekdaysMask ?: 31) ||
-            timesPerWeek != (existing?.timesPerWeek?.takeIf { it > 0 } ?: 3) ||
-            intervalDays != (existing?.intervalDays?.takeIf { it > 0 } ?: 3) ||
-            complexity != (existing?.complexity ?: "M") ||
-            reminderMin != existing?.reminderMinOfDay
-
-        LaunchedEffect(closeRequested) {
-            if (!closeRequested) return@LaunchedEffect
-            if (isDirty) confirmDiscard = true else onDismiss()
-            closeRequested = false
-        }
-
-        // Прибитый низ: кнопка вне скролла, видна и с открытой клавиатурой (imePadding)
-        Column(modifier = Modifier.fillMaxWidth().imePadding()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = if (existing == null) "Новая привычка" else "Редактировать",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = { Text("Например: чтение перед сном") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                FieldLabel("Эмодзи")
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(habitEmojiPresets) { preset ->
-                        EmojiPreset(
-                            emoji = preset,
-                            selected = emoji == preset,
-                            onClick = { emoji = preset },
-                        )
-                    }
-                }
-
-                FieldLabel("Характеристика")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    characteristicLabels.forEach { (key, label) ->
-                        SelectableChip(
-                            text = label,
-                            selected = characteristic == key,
-                            onClick = { characteristic = key },
-                        )
-                    }
-                }
-
-                FieldLabel("Расписание")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    scheduleSegments.forEach { (key, label) ->
-                        SelectableChip(
-                            text = label,
-                            selected = scheduleType == key,
-                            onClick = { scheduleType = key },
-                        )
-                    }
-                }
-                when (scheduleType) {
-                    HabitEngine.SCHEDULE_WEEKDAYS -> {
-                        WeekdayPicker(weekdaysMask) { weekdaysMask = it }
-                        // Реактивная подсказка: что реально выбрано под дефолтом Пн–Пт
-                        Text(
-                            text = weekdaysHint(weekdaysMask),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Q.inkMuted,
-                        )
-                    }
-                    HabitEngine.SCHEDULE_TIMES_PER_WEEK -> TimesPerWeekRow(timesPerWeek) { timesPerWeek = it }
-                    HabitEngine.SCHEDULE_INTERVAL -> IntervalRow(intervalDays) { intervalDays = it }
-                }
-
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(text = "Количественная цель", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = "Например: 30 мин, 8 стаканов",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Q.inkMuted,
-                        )
-                    }
-                    Switch(checked = hasTarget, onCheckedChange = { hasTarget = it })
-                }
-                if (hasTarget) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = targetText,
-                            onValueChange = { targetText = it },
-                            placeholder = { Text("Число, напр. 30") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f),
-                        )
-                        OutlinedTextField(
-                            value = unit,
-                            onValueChange = { unit = it },
-                            placeholder = { Text("мин") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                FieldLabel("Сложность")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("S" to "S · лёгкая", "M" to "M · средняя", "L" to "L · большая").forEach { (key, label) ->
-                        SelectableChip(
-                            text = label,
-                            selected = complexity == key,
-                            modifier = Modifier.weight(1f),
-                            onClick = { complexity = key },
-                        )
-                    }
-                }
-                Text(
-                    text = "XP за отметку: +${HabitEngine.xpForHabit(complexity)} · дневной кап +20 XP",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Q.inkMuted,
-                )
-
-                ReminderField(
-                    minOfDay = reminderMin,
-                    onMinOfDay = { reminderMin = it },
-                )
-            }
-
-            Button(
-                onClick = {
-                    onSave(
-                        Habit(
-                            id = existing?.id ?: 0L,
-                            title = title.trim(),
-                            emoji = emoji,
-                            colorIndex = existing?.colorIndex ?: 0,
-                            characteristic = characteristic,
-                            scheduleType = scheduleType,
-                            weekdaysMask = if (scheduleType == HabitEngine.SCHEDULE_WEEKDAYS) weekdaysMask else 0,
-                            timesPerWeek = if (scheduleType == HabitEngine.SCHEDULE_TIMES_PER_WEEK) timesPerWeek else 0,
-                            intervalDays = if (scheduleType == HabitEngine.SCHEDULE_INTERVAL) intervalDays else 0,
-                            targetValue = targetParsed?.takeIf { it > 0.0 },
-                            unit = if (hasTarget) unit.trim().ifEmpty { null } else null,
-                            complexity = complexity,
-                            createdAt = existing?.createdAt ?: AppRepo.todayEpochDay,
-                            archivedAt = existing?.archivedAt,
-                            reminderMinOfDay = reminderMin,
-                        ),
-                    )
-                },
-                enabled = valid,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-            ) {
-                Text(if (existing == null) "Добавить" else "Сохранить")
-            }
-
-            existing?.let { habit ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { confirm = ConfirmKind.ARCHIVE }) {
-                        Text("Архивировать")
-                    }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { confirm = ConfirmKind.DELETE }) {
-                        Text("Удалить", color = Q.danger)
-                    }
-                }
+        // BACK перехватываем ВНУТРИ окна шторки, раньше её predictive-back:
+// иначе API 35 прячет шторку молча, а onDismissRequest срабатывает уже после.
+        BackHandler(enabled = true) {
+            when {
+                confirmDiscard -> confirmDiscard = false
+                isDirty -> confirmDiscard = true
+                else -> onDismiss()
             }
         }
 
-        when (confirm) {
-            ConfirmKind.ARCHIVE -> EditorConfirmDialog(
+        // Подтверждения — сменой содержимого шторки, без окон поверх неё
+        when {
+            confirmDiscard -> DiscardPanel(
+                onContinue = { confirmDiscard = false },
+                onDiscard = onDismiss,
+            )
+            confirm == ConfirmKind.ARCHIVE -> ConfirmPanel(
                 title = "Убрать в архив?",
                 text = "«${existing?.title}» исчезнет из списка, но отметки и стрик сохранятся.",
                 confirmLabel = "Архивировать",
@@ -286,7 +128,7 @@ fun HabitEditorSheet(
                 onConfirm = { existing?.let(onArchive); confirm = null },
                 onDismiss = { confirm = null },
             )
-            ConfirmKind.DELETE -> EditorConfirmDialog(
+            confirm == ConfirmKind.DELETE -> ConfirmPanel(
                 title = "Удалить привычку?",
                 text = "«${existing?.title}» и все отметки будут удалены безвозвратно.",
                 confirmLabel = "Удалить",
@@ -294,23 +136,258 @@ fun HabitEditorSheet(
                 onConfirm = { existing?.let(onDelete); confirm = null },
                 onDismiss = { confirm = null },
             )
-            null -> Unit
-        }
+            // Прибитый низ: кнопка вне скролла, видна и с открытой клавиатурой (imePadding)
+            else -> Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = if (existing == null) "Новая привычка" else "Редактировать",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
 
-        if (confirmDiscard) {
-            AlertDialog(
-                shape = RoundedCornerShape(16.dp),
-                onDismissRequest = { confirmDiscard = false },
-                title = { Text("Не сохранять?") },
-                text = { Text("Введённое пропадёт") },
-                confirmButton = {
-                    TextButton(onClick = onDismiss) { Text("Закрыть без сохранения") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
-                },
-            )
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        placeholder = { Text("Например: чтение перед сном") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    FieldLabel("Эмодзи")
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(habitEmojiPresets) { preset ->
+                            EmojiPreset(
+                                emoji = preset,
+                                selected = emoji == preset,
+                                onClick = { emoji = preset },
+                            )
+                        }
+                    }
+
+                    FieldLabel("Характеристика")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        characteristicLabels.forEach { (key, label) ->
+                            SelectableChip(
+                                text = label,
+                                selected = characteristic == key,
+                                onClick = { characteristic = key },
+                            )
+                        }
+                    }
+
+                    FieldLabel("Расписание")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        scheduleSegments.forEach { (key, label) ->
+                            SelectableChip(
+                                text = label,
+                                selected = scheduleType == key,
+                                onClick = { scheduleType = key },
+                            )
+                        }
+                    }
+                    when (scheduleType) {
+                        HabitEngine.SCHEDULE_WEEKDAYS -> {
+                            WeekdayPicker(weekdaysMask) { weekdaysMask = it }
+                            // Реактивная подсказка: что реально выбрано под дефолтом Пн–Пт
+                            Text(
+                                text = weekdaysHint(weekdaysMask),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Q.inkMuted,
+                            )
+                        }
+                        HabitEngine.SCHEDULE_TIMES_PER_WEEK -> TimesPerWeekRow(timesPerWeek) { timesPerWeek = it }
+                        HabitEngine.SCHEDULE_INTERVAL -> IntervalRow(intervalDays) { intervalDays = it }
+                    }
+
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(text = "Количественная цель", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = "Например: 30 мин, 8 стаканов",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Q.inkMuted,
+                            )
+                        }
+                        Switch(checked = hasTarget, onCheckedChange = { hasTarget = it })
+                    }
+                    if (hasTarget) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = targetText,
+                                onValueChange = { targetText = it },
+                                placeholder = { Text("Число, напр. 30") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
+                            )
+                            OutlinedTextField(
+                                value = unit,
+                                onValueChange = { unit = it },
+                                placeholder = { Text("мин") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
+                            )
+                        }
+                    }
+
+                    FieldLabel("Сложность")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("S" to "S · лёгкая", "M" to "M · средняя", "L" to "L · большая").forEach { (key, label) ->
+                            SelectableChip(
+                                text = label,
+                                selected = complexity == key,
+                                modifier = Modifier.weight(1f),
+                                onClick = { complexity = key },
+                            )
+                        }
+                    }
+                    Text(
+                        text = "XP за отметку: +${HabitEngine.xpForHabit(complexity)} · дневной кап +20 XP",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Q.inkMuted,
+                    )
+
+                    ReminderField(
+                        minOfDay = reminderMin,
+                        onMinOfDay = { reminderMin = it },
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        onSave(
+                            Habit(
+                                id = existing?.id ?: 0L,
+                                title = title.trim(),
+                                emoji = emoji,
+                                colorIndex = existing?.colorIndex ?: 0,
+                                characteristic = characteristic,
+                                scheduleType = scheduleType,
+                                weekdaysMask = if (scheduleType == HabitEngine.SCHEDULE_WEEKDAYS) weekdaysMask else 0,
+                                timesPerWeek = if (scheduleType == HabitEngine.SCHEDULE_TIMES_PER_WEEK) timesPerWeek else 0,
+                                intervalDays = if (scheduleType == HabitEngine.SCHEDULE_INTERVAL) intervalDays else 0,
+                                targetValue = targetParsed?.takeIf { it > 0.0 },
+                                unit = if (hasTarget) unit.trim().ifEmpty { null } else null,
+                                complexity = complexity,
+                                createdAt = existing?.createdAt ?: AppRepo.todayEpochDay,
+                                archivedAt = existing?.archivedAt,
+                                reminderMinOfDay = reminderMin,
+                            ),
+                        )
+                    },
+                    enabled = valid,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                ) {
+                    Text(if (existing == null) "Добавить" else "Сохранить")
+                }
+
+                existing?.let { habit ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { confirm = ConfirmKind.ARCHIVE }) {
+                            Text("Архивировать")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { confirm = ConfirmKind.DELETE }) {
+                            Text("Удалить", color = Q.danger)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+}
+
+/** Панель «Не сохранять?» — содержимое шторки, не окно поверх неё */
+@Composable
+private fun DiscardPanel(
+    onContinue: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 24.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Не сохранять?", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Введённое пропадёт",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = onDiscard,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .height(50.dp),
+        ) { Text("Закрыть без сохранения") }
+        TextButton(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Продолжить ввод") }
+    }
+}
+
+/** Подтверждение архивирования/удаления — содержимое шторки, не окно поверх неё */
+@Composable
+private fun ConfirmPanel(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    danger: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 24.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = onConfirm,
+            shape = RoundedCornerShape(14.dp),
+            colors = if (danger) {
+                ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            } else {
+                // Нейтральный тон для архивирования (в тон прежнего диалога)
+                ButtonDefaults.buttonColors(containerColor = Q.surfaceAlt, contentColor = Q.ink)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .height(50.dp),
+        ) { Text(confirmLabel) }
+        TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Отмена") }
     }
 }
 

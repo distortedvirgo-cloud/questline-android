@@ -26,7 +26,7 @@ import kotlinx.serialization.json.contentOrNull
 
 private const val HINT_NOT_CONFIGURED = "Вставь API-ключ: Настройки → AI-коуч"
 private const val HINT_THINKING = "Думаю…"
-private const val HINT_FAILED = "Не получилось, поставил M"
+private const val HINT_FAILED = "Не получилось определить сложность — поставил среднюю"
 private const val HINT_TIMEOUT_MS = 4000L
 
 private val COMPLEXITIES = setOf("S", "M", "L")
@@ -120,7 +120,7 @@ fun TaskAiSuggestChip(
 private fun parseAiSuggestion(raw: String, categories: List<Category>): Pair<String, Long?> {
     val start = raw.indexOf('{')
     val end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) error("JSON не найден в ответе модели")
+    if (start < 0 || end <= start) error("Коуч ответил не по формату, попробуй ещё раз")
     val parsed = aiSuggestJson.decodeFromString<Map<String, JsonElement>>(raw.substring(start, end + 1))
 
     val rawComplexity = (parsed["complexity"] as? JsonPrimitive)?.contentOrNull?.trim()?.uppercase()

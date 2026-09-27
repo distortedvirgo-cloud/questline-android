@@ -12,11 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -81,7 +82,7 @@ class QuickAddViewModel(private val repo: AppRepo) : ViewModel() {
 /**
  * Быстрый ввод: сумма, категория (FINANCE), Расход/Доход, необязательная заметка.
  * Сумма вводится в рублях → копейки внутри. [onSaved] отдаёт готовый текст
- * «Записал: −100 ₽ · Продукты» для снекбара на MoneyScreen.
+ * «Записано: −100 ₽ · Продукты» для снекбара на MoneyScreen.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -102,7 +103,7 @@ fun QuickAddSheet(
     val accounts = remember { AccountsPrefs.list(context) }
     // Одна карта — атрибутируем автоматически; иначе выбор чипом (необязательный).
     var accountLast4 by remember { mutableStateOf(accounts.singleOrNull()?.last4) }
-    // Диалог «не терять ввод»: BACK и тап мимо ловятся здесь же
+    // Панель «не терять ввод» вместо диалога: BACK и тап мимо ловятся здесь же
     var confirmDiscard by remember { mutableStateOf(false) }
 
     val amountMinor = MoneyFormat.parseRubles(amountText)
@@ -114,6 +115,23 @@ fun QuickAddSheet(
         onDismissRequest = { if (isDirty) confirmDiscard = true else onDismissRequest() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
+        // BACK перехватываем ВНУТРИ окна шторки, раньше её predictive-back:
+        // иначе API 35 прячет шторку молча, а onDismissRequest срабатывает уже после.
+        BackHandler(enabled = true) {
+            when {
+                confirmDiscard -> confirmDiscard = false
+                isDirty -> confirmDiscard = true
+                else -> onDismissRequest()
+            }
+        }
+        if (confirmDiscard) {
+            // Подтверждение — сменой содержимого шторки, без окна поверх неё
+            DiscardPanel(
+                onContinue = { confirmDiscard = false },
+                onDiscard = onDismissRequest,
+            )
+            return@ModalBottomSheet
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,7 +225,7 @@ fun QuickAddSheet(
                     val categoryName = financeCategories
                         .firstOrNull { it.id == selectedCategoryId }
                         ?.name.orEmpty()
-                    val message = "Записал: $sign${MoneyFormat.text(amountMinor!!)} · $categoryName"
+                    val message = "Записано: $sign${MoneyFormat.text(amountMinor!!)} · $categoryName"
                     vm.save(
                         type = if (isExpense) "EXPENSE" else "INCOME",
                         categoryId = selectedCategoryId!!,
@@ -235,17 +253,39 @@ fun QuickAddSheet(
         }
     }
 
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("Не сохранять?") },
-            text = { Text("Введённое пропадёт") },
-            confirmButton = {
-                TextButton(onClick = onDismissRequest) { Text("Закрыть без сохранения") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
-            },
+}
+
+/** Панель «Не сохранять?» — содержимое шторки, не окно поверх неё */
+@Composable
+private fun DiscardPanel(
+    onContinue: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(horizontal = 16.dp)
+            .padding(top = 24.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Не сохранять?", style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = "Введённое пропадёт",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Button(
+            onClick = onDiscard,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .height(52.dp),
+        ) { Text("Закрыть без сохранения") }
+        TextButton(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Продолжить ввод") }
     }
 }

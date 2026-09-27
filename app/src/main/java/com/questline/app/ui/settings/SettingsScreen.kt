@@ -144,7 +144,7 @@ fun SettingsScreen(
             if (!listenerGranted) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Нужен доступ к уведомлениям: включите Questline в системных настройках.",
+                    "Нужен доступ к уведомлениям: включи Questline в системных настройках.",
                     style = MaterialTheme.typography.labelSmall,
                     color = Q.warn,
                 )
@@ -170,14 +170,14 @@ fun SettingsScreen(
                         try {
                             val release = UpdateChecker.checkLatest(UpdateConfig.REPO)
                             if (release == null || !UpdateChecker.isNewerVersion(release.version, BuildConfig.VERSION_NAME)) {
-                                updateStatus = "У вас последняя версия"
+                                updateStatus = "У тебя последняя версия"
                             } else if (release.apkUrl.isEmpty()) {
-                                updateStatus = "В релизе v${release.version} нет APK"
+                                updateStatus = "В релизе v${release.version} файл обновления не найден"
                             } else {
                                 pendingRelease = release
                             }
                         } catch (e: Exception) {
-                            errorText = "Ошибка сети: ${e.message}"
+                            errorText = "Нет связи. Проверь интернет и попробуй ещё раз"
                         } finally {
                             updateBusy = false
                         }
@@ -248,7 +248,7 @@ fun SettingsScreen(
                                     UpdateChecker.openInstallUnknownAppsSettings(context)
                                 }
                             } catch (e: Exception) {
-                                errorText = "Не удалось скачать: ${e.message}"
+                                errorText = "Не получилось скачать обновление. Проверь интернет и попробуй ещё раз"
                                 updateProgress = -1
                             } finally {
                                 pendingRelease = null

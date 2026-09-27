@@ -267,7 +267,7 @@ private fun EmptyHint(modifier: Modifier) {
             )
             Spacer(Modifier.size(4.dp))
             Text(
-                text = "Нажмите «+», чтобы завести первую. Каждый день — хоть немного.",
+                text = "Нажми «+», чтобы завести первую. Каждый день — хоть немного.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Q.inkMuted,
                 textAlign = TextAlign.Center,

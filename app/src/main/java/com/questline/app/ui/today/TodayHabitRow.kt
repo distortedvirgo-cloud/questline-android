@@ -9,6 +9,9 @@ package com.questline.app.ui.today
  * Пропущенный запланированный день — чип платной заморозки (T-07).
  */
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutBack
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,8 +42,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -156,6 +163,23 @@ internal fun TodayHabitRow(
 
     val ringColor = colorForIndex(habit.colorIndex)
 
+    // Микропульс количественного значения: каждый инкремент — scale 1 → 1.15 → 1
+    // (~180 мс, назад — ease-out-back) и один хаптик
+    val quantityScale = remember { Animatable(1f) }
+    var lastQuantity by remember { mutableStateOf(check?.value) }
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(check?.value) {
+        val value = check?.value
+        val previous = lastQuantity
+        if (value != null && previous != null && value > previous) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress) // тик на инкремент
+            quantityScale.snapTo(1f)
+            quantityScale.animateTo(1.15f, tween(90))
+            quantityScale.animateTo(1f, tween(90, easing = EaseOutBack))
+        }
+        lastQuantity = value
+    }
+
     fun onCheckTap() {
         if (habit.targetValue == null) {
             // Простая привычка: эффекты сначала, реальная отметка — по onFinished (как у квестов).
@@ -223,6 +247,10 @@ internal fun TodayHabitRow(
                                 quantityLabel(habit, check),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (done) Q.success else Q.inkMuted,
+                                modifier = Modifier.graphicsLayer {
+                                    scaleX = quantityScale.value
+                                    scaleY = quantityScale.value
+                                },
                             )
                         }
                     }
@@ -259,7 +287,8 @@ internal fun TodayHabitRow(
 }
 
 /** Круглая чек-кнопка: выполнено — success-заливка с галочкой; заморозка —
- *  нейтральная снежинка на surfaceAlt; иначе тихий круг с «+». */
+ *  нейтральная снежинка на surfaceAlt; иначе явный контур inkMuted с «+»
+ *  акцентом (surfaceAlt на surfaceAlt был не виден — 1.06:1). */
 @Composable
 private fun HabitCheckButton(done: Boolean, frozen: Boolean, modifier: Modifier = Modifier) {
     Box(
@@ -273,7 +302,15 @@ private fun HabitCheckButton(done: Boolean, frozen: Boolean, modifier: Modifier 
                     else -> Q.surfaceAlt
                 },
             )
-            .border(1.dp, if (done && !frozen) Q.success else Q.border, CircleShape),
+            .border(
+                1.dp,
+                when {
+                    frozen -> Q.border
+                    done -> Q.success
+                    else -> Q.inkMuted // неотмеченная читается как кнопка
+                },
+                CircleShape,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -285,7 +322,7 @@ private fun HabitCheckButton(done: Boolean, frozen: Boolean, modifier: Modifier 
             color = when {
                 frozen -> Q.inkMuted
                 done -> Q.surface
-                else -> Q.inkMuted
+                else -> Q.accent // «+» акцентом — главный CTA дня
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,

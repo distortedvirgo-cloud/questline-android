@@ -140,7 +140,7 @@ fun AssistantScreen() {
                 SoftNote(error)
             }
             Spacer(Modifier.height(4.dp))
-            SoftNote("Ответ модели — только идея: решения принимаешь ты.")
+            SoftNote("Ответ коуча — только идея: решения принимаешь ты.")
         }
         Spacer(Modifier.height(32.dp))
     }
@@ -233,7 +233,7 @@ class AssistantViewModel(
     private fun buildCoachContext(summary: WeekSummary, habits: List<com.questline.app.data.habits.Habit>): String {
         val burnText = when (summary.burn.status) {
             BurnRate.Status.OVER -> "план трат пробит"
-            BurnRate.Status.FAST -> "траты быстрее плана на ${summary.burn.overspendPercent} п.п."
+            BurnRate.Status.FAST -> "траты быстрее плана на ${summary.burn.overspendPercent}%"
             BurnRate.Status.CALM -> "темп трат спокойный"
         }
         val habitsText = habits.take(6)

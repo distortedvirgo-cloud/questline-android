@@ -122,7 +122,7 @@ private fun parseAutoResponse(
     return try {
         val start = raw.indexOf('{')
         val end = raw.lastIndexOf('}')
-        if (start < 0 || end <= start) error("JSON не найден в ответе модели")
+        if (start < 0 || end <= start) error("Коуч ответил не по формату, попробуй ещё раз")
         val parsed = autoProcessJson.decodeFromString<AutoResponse>(raw.substring(start, end + 1))
 
         parsed.items.mapNotNull { item ->

@@ -57,7 +57,7 @@ fun BackupSection() {
                     }
                     message = "Экспорт готов ✓"
                 } catch (e: Exception) {
-                    message = "Ошибка экспорта: ${e.message?.take(80)}"
+                    message = "Не получилось сохранить копию"
                 }
             }
         }
@@ -79,7 +79,7 @@ fun BackupSection() {
         Text("Данные и бэкап", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Все данные хранятся только на телефоне: задачи, деньги, привычки и журнал XP. Сохраняйте копию перед сменой устройства.",
+            "Все данные хранятся только на телефоне: задачи, деньги, привычки и журнал XP. Сохраняй копию перед сменой устройства.",
             style = MaterialTheme.typography.bodySmall,
             color = Q.inkMuted,
         )
@@ -114,7 +114,7 @@ fun BackupSection() {
                             }
                             message = "Восстановлено записей: $count"
                         } catch (e: Exception) {
-                            message = "Ошибка импорта: ${e.message?.take(80)}"
+                            message = "Не получилось восстановить из копии"
                         }
                     }
                 }) { Text("Заменить", color = Q.danger) }

@@ -181,7 +181,7 @@ private fun EmptyHint(isInbox: Boolean, modifier: Modifier) {
             )
             Spacer(Modifier.size(4.dp))
             Text(
-                text = if (isInbox) "Нажмите «+», чтобы добавить первую." else "Хороший момент для отдыха или новых задач.",
+                text = if (isInbox) "Нажми «+», чтобы добавить первую." else "Хороший момент для отдыха или новых задач.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Q.inkMuted,
                 textAlign = TextAlign.Center,

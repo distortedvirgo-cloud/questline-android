@@ -15,10 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -26,7 +27,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,43 +53,52 @@ fun AddTaskSheet(
     onDismiss: () -> Unit,
     onSave: (title: String, complexity: String, categoryId: Long?, dueEpochDay: Long?, repeatIntervalDays: Int) -> Unit,
 ) {
-    // BACK/тап мимо ловятся здесь: состояние формы живёт внутри контента шторки,
-    // поэтому решение о закрытии принимается после расчёта «грязности» (LaunchedEffect ниже)
-    var closeRequested by remember { mutableStateOf(false) }
+    // Состояние формы объявлено НАД шторкой (образец — QuickAddSheet):
+    // onDismissRequest сам решает — панель «Не сохранять?» или закрытие.
+    var title by remember(editing?.id) { mutableStateOf(editing?.title.orEmpty()) }
+    // Для НОВОЙ задачи дефолт «S» (+20 XP); при редактировании — сложность записи
+    var complexity by remember(editing?.id) { mutableStateOf(editing?.complexity ?: "S") }
+    var categoryId by remember(editing?.id) { mutableStateOf(editing?.categoryId) }
+    var dueEpochDay by remember(editing?.id) { mutableStateOf(editing?.dueEpochDay) }
+    var repeatIntervalDays by remember(editing?.id) {
+        mutableStateOf(
+            when {
+                editing == null -> 0
+                editing.repeatIntervalDays > 0 -> editing.repeatIntervalDays
+                // Старая запись: был только ежедневный повтор
+                editing.repeatDaily -> 1
+                else -> 0
+            },
+        )
+    }
     var confirmDiscard by remember { mutableStateOf(false) }
 
+    // Грязная форма: название непустое и отличается от исходного
+    val isDirty = title.isNotBlank() && title != editing?.title.orEmpty()
+
     ModalBottomSheet(
-        onDismissRequest = { closeRequested = true },
+        onDismissRequest = { if (isDirty) confirmDiscard = true else onDismiss() },
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        var title by remember(editing?.id) { mutableStateOf(editing?.title.orEmpty()) }
-        // Для НОВОЙ задачи дефолт «S» (+20 XP); при редактировании — сложность записи
-        var complexity by remember(editing?.id) { mutableStateOf(editing?.complexity ?: "S") }
-        var categoryId by remember(editing?.id) { mutableStateOf(editing?.categoryId) }
-        var dueEpochDay by remember(editing?.id) { mutableStateOf(editing?.dueEpochDay) }
-        var repeatIntervalDays by remember(editing?.id) {
-            mutableStateOf(
-                when {
-                    editing == null -> 0
-                    editing.repeatIntervalDays > 0 -> editing.repeatIntervalDays
-                    // Старая запись: был только ежедневный повтор
-                    editing.repeatDaily -> 1
-                    else -> 0
-                },
+        // BACK перехватываем ВНУТРИ окна шторки, раньше её predictive-back:
+        // иначе API 35 прячет шторку молча, а onDismissRequest срабатывает уже после.
+        BackHandler(enabled = true) {
+            when {
+                confirmDiscard -> confirmDiscard = false
+                isDirty -> confirmDiscard = true
+                else -> onDismiss()
+            }
+        }
+        if (confirmDiscard) {
+            // Подтверждение — сменой содержимого шторки, без окна поверх неё
+            DiscardPanel(
+                onContinue = { confirmDiscard = false },
+                onDiscard = onDismiss,
             )
+            return@ModalBottomSheet
         }
-
         val today = AppRepo.todayEpochDay
-
-        // Грязная форма: название непустое и отличается от исходного
-        val isDirty = title.isNotBlank() && title != editing?.title.orEmpty()
-
-        LaunchedEffect(closeRequested) {
-            if (!closeRequested) return@LaunchedEffect
-            if (isDirty) confirmDiscard = true else onDismiss()
-            closeRequested = false
-        }
 
         // Контентный столбец: скроллящиеся поля сверху + прибитый внизу ряд кнопок,
         // который не скрывается под клавиатурой (imePadding).
@@ -251,18 +260,41 @@ fun AddTaskSheet(
         }
     }
 
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("Не сохранять?") },
-            text = { Text("Введённое пропадёт") },
-            confirmButton = {
-                TextButton(onClick = onDismiss) { Text("Закрыть без сохранения") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") }
-            },
+}
+
+/** Панель «Не сохранять?» — содержимое шторки, не окно поверх неё */
+@Composable
+private fun DiscardPanel(
+    onContinue: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 24.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Не сохранять?", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Введённое пропадёт",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Button(
+            onClick = onDiscard,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .height(50.dp),
+        ) { Text("Закрыть без сохранения") }
+        TextButton(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Продолжить ввод") }
     }
 }
 

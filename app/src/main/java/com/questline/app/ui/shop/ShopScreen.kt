@@ -54,6 +54,8 @@ fun ShopScreen(onBack: () -> Unit) {
     // Покупка/применение празднуются: вибро-тик и подпись «Куплено и применено ✨»
     val haptics = LocalHapticFeedback.current
     var justAppliedId by remember { mutableStateOf<String?>(null) }
+    // Покупка в процессе: двойной тап не должен списать монеты дважды
+    var purchaseBusy by remember { mutableStateOf(false) }
 
     Scaffold(containerColor = Q.bg, topBar = { ShopTopBar(onBack) }) { padding ->
         Column(
@@ -77,13 +79,20 @@ fun ShopScreen(onBack: () -> Unit) {
                     owned = owned,
                     isApplied = ThemeState.selectedIndex == index,
                     justApplied = justAppliedId == theme.id,
+                    busy = purchaseBusy,
                     onChoose = {
+                        if (purchaseBusy) return@ThemeCard
                         scope.launch {
-                            if (ThemeState.buy(context, theme)) {
-                                ThemeState.selectedIndex = index
-                                ThemeState.persist(context)
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                justAppliedId = theme.id
+                            purchaseBusy = true
+                            try {
+                                if (ThemeState.buy(context, theme)) {
+                                    ThemeState.selectedIndex = index
+                                    ThemeState.persist(context)
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    justAppliedId = theme.id
+                                }
+                            } finally {
+                                purchaseBusy = false
                             }
                         }
                     },
@@ -115,6 +124,7 @@ private fun ThemeCard(
     owned: Set<String>,
     isApplied: Boolean,
     justApplied: Boolean,
+    busy: Boolean,
     onChoose: () -> Unit,
 ) {
     Row(
@@ -141,21 +151,22 @@ private fun ThemeCard(
                 color = Q.success,
                 style = MaterialTheme.typography.labelLarge,
             )
-            theme.id in owned -> TextButton(onClick = onChoose) { Text("Применить") }
-            else -> BuyAction(theme.price, canAfford = coins >= theme.price, onBuy = onChoose)
+            theme.id in owned -> TextButton(enabled = !busy, onClick = onChoose) { Text("Применить") }
+            else -> BuyAction(theme.price, canAfford = coins >= theme.price, busy = busy, onBuy = onChoose)
         }
     }
 }
 
 @Composable
-private fun BuyAction(price: Int, canAfford: Boolean, onBuy: () -> Unit) {
+private fun BuyAction(price: Int, canAfford: Boolean, busy: Boolean, onBuy: () -> Unit) {
     Column(horizontalAlignment = Alignment.End) {
         Text(
             "$price монет",
             style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
             color = if (canAfford) Q.coin else Q.inkMuted,
         )
-        TextButton(enabled = canAfford, onClick = onBuy) { Text("Купить") }
+        // busy — на время запроса покупки: повторный тап не списывает дважды
+        TextButton(enabled = canAfford && !busy, onClick = onBuy) { Text("Купить") }
         if (!canAfford) {
             Text("Не хватает монет", color = Q.inkMuted, style = MaterialTheme.typography.labelSmall)
         }

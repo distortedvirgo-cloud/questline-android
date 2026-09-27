@@ -205,7 +205,11 @@ private fun HabitCheckButton(
             .size(32.dp)
             .border(
                 width = 2.dp,
-                color = if (!card.frozenToday && progress > 0.5f) Q.success else Q.border,
+                color = when {
+                    card.frozenToday -> Q.border // заморозка — нейтральный статус
+                    progress > 0.5f -> Q.success
+                    else -> Q.inkMuted // неотмеченная читается как кнопка (был невидимый border)
+                },
                 shape = CircleShape,
             )
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -241,13 +245,23 @@ private fun HabitCheckButton(
                     modifier = Modifier.size(16.dp),
                 )
             }
-            // Ниже цели — контурная кнопка со счётчиком значения
-            if (!card.doneToday && card.habit.targetValue != null) {
-                Text(
-                    text = fmt(card.todayCheck?.value ?: 0.0),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Q.inkMuted,
-                )
+            // Не отмечено: у количественной — счётчик значения, у обычной — явный
+            // «+»; оба акцентом, чтобы пустая кнопка читалась на фоне карточки
+            if (!card.doneToday) {
+                if (card.habit.targetValue != null) {
+                    Text(
+                        text = fmt(card.todayCheck?.value ?: 0.0),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Q.accent,
+                    )
+                } else {
+                    Text(
+                        text = "+",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Q.accent,
+                    )
+                }
             }
         }
     }

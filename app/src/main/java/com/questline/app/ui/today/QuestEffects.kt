@@ -5,6 +5,7 @@ package com.questline.app.ui.today
  */
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -21,11 +22,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.questline.app.ui.habits.HabitMilestonePulse
 import com.questline.app.ui.theme.Q
 import com.questline.app.ui.theme.questlineQ
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
@@ -34,11 +38,16 @@ import kotlin.random.Random
 
 private const val COLLAPSE_MS = 300
 private const val BURST_MS = 700
+private const val MILESTONE_HOLD_MS = 250L  // холд до старта: заголовок успевают увидеть
+private const val MILESTONE_BURST_MS = 1600 // веха живёт дольше квестового burst
 private const val CONFETTI_COUNT = 24
 private const val COLLAPSE_SCALE = 0.92f // карточка сжимается 1.0 -> 0.92
 private const val SPREAD_DP = 70f        // базовый радиус разлёта конфетти
 private const val GRAVITY_DP = 48f       // довесок вниз к концу разлёта
 private val XP_RISE = 48.dp              // высота всплытия «+XP»
+
+// Взрыв конфетти: резкий старт и мягкое торможение в конце
+private val MilestoneEasing = CubicBezierEasing(0.1f, 0.9f, 0.2f, 1f)
 
 /** Частица конфетти: параметры разлёта (сидируются quest.id). */
 internal class Particle(
@@ -88,8 +97,9 @@ fun rememberQuestBurstState(seed: Long = 0L): QuestBurstState =
     remember(seed) { QuestBurstState(seed = seed) }
 
 /** Полноэкранное празднование вехи стрика (T-07): конфетти из центра экрана
- *  и строка «🔥 Серия 7 дней! +10 монет». Длительность — как у квестов
- *  (BURST_MS = 700 мс), затем onFinished (VM гасит событие). */
+ *  и строка «🔥 Серия 7 дней! +10 монет». Хаптик и холд 250 мс на старте,
+ *  затем разлёт MILESTONE_BURST_MS с плавным торможением; по завершении
+ *  onFinished (VM гасит событие). */
 @Composable
 fun MilestoneCelebration(
     event: HabitMilestonePulse?,
@@ -97,9 +107,12 @@ fun MilestoneCelebration(
 ) {
     if (event == null) return
     val state = rememberQuestBurstState(seed = event.seq)
+    val haptics = LocalHapticFeedback.current
     LaunchedEffect(event.seq) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress) // старт празднования
         state.burst.snapTo(0f)
-        state.burst.animateTo(1f, tween(BURST_MS, easing = LinearEasing))
+        delay(MILESTONE_HOLD_MS) // холд: конфетти не мелькает, а держит кадр
+        state.burst.animateTo(1f, tween(MILESTONE_BURST_MS, easing = MilestoneEasing))
         onFinished()
     }
 

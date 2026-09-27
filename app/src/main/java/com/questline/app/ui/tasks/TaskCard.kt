@@ -130,10 +130,17 @@ fun TaskCard(
     }
 }
 
-/** Мягкий галочкой confirm: заливка появляется со scale 0.9 → 1, 200 мс */
+/** Мягкий галочкой confirm: заливка появляется со scale 0.9 → 1, 200 мс.
+ *  Общий чек-круг задач (TaskCard и секция «Сегодня»); modifier — для
+ *  позиционных хуков (onGloballyPositioned) у вызывающей стороны. */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun CheckCircle(checked: Boolean, enabled: Boolean, onClick: () -> Unit) {
+internal fun CheckCircle(
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val progress by animateFloatAsState(
         targetValue = if (checked) 1f else 0f,
         animationSpec = tween(durationMillis = 200),
@@ -141,7 +148,7 @@ private fun CheckCircle(checked: Boolean, enabled: Boolean, onClick: () -> Unit)
     )
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .size(26.dp)
             .border(width = 2.dp, color = if (checked) Q.success else Q.border, shape = CircleShape)
             .combinedClickable(enabled = enabled, onClick = onClick),

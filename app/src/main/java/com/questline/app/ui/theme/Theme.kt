@@ -47,7 +47,9 @@ val LightQ = QColors(
     surfaceAlt = Color(0xFFF1EFEA), // вторичные блоки, чипы
     border = Color(0xFFE5E2DA),     // границы вместо теней
     ink = Color(0xFF1E1E1C),
-    inkMuted = Color(0xFF8A8780),
+    // Затемнён против прежнего #8A8780: контраст 5.32:1 на surface и 4.63:1 на
+    // surfaceAlt светлой темы (AA 4.5:1 для мелкого текста)
+    inkMuted = Color(0xFF6E6B64),
     accent = Color(0xFF4A5FD9),     // единственный акцент
     accentSoft = Color(0xFFEEF0FB),
     success = Color(0xFF3D8B5F),

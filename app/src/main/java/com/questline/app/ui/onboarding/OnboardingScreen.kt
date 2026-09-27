@@ -206,7 +206,7 @@ private fun FinalStep(created: List<StarterHabit>) {
         Spacer(Modifier.height(18.dp))
         when {
             created.isEmpty() -> Text(
-                "Начнёшь и без привычек — загляни в «Привычки», когда захочется.",
+                "Можно начать и без привычек: загляни в «Привычки», когда захочется.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Q.inkMuted,
             )
