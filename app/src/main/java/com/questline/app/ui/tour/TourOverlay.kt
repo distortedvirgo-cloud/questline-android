@@ -105,13 +105,14 @@ fun TourOverlay(
 /** Скрим с вырезом: DstOut по прямоугольнику цели, раздутому на 8dp. */
 @Composable
 private fun TourScrim(holeRect: Rect?) {
-    val q = questlineQ()
     Canvas(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
     ) {
-        drawRect(color = q.ink.copy(alpha = 0.88f))
+        // Затемнение всегда тёмное в обеих темах: q.ink в тёмной теме светлый,
+        // и прожектор превращался в белую пелену поверх тёмного экрана.
+        drawRect(color = Color.Black.copy(alpha = 0.85f))
         holeRect?.let { r ->
             val pad = HolePad.toPx()
             drawRoundRect(
