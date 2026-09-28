@@ -109,7 +109,7 @@ data class PendingTxn(
     val title: String,
     val text: String,
     val amountMinor: Long,
-    /** EXPENSE | INCOME */
+    /** EXPENSE | INCOME | TRANSFER */
     val type: String,
     val epochDay: Long,
     val receivedMillis: Long,

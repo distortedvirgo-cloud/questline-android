@@ -14,8 +14,8 @@ android {
         applicationId = "com.questline.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 29
-        versionName = "3.4.2"
+        versionCode = 30
+        versionName = "3.4.3"
     }
 
     signingConfigs {

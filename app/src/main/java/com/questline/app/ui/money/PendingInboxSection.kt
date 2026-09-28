@@ -40,11 +40,14 @@ import com.questline.app.data.AppRepo
 import com.questline.app.data.Category
 import com.questline.app.data.PendingTxn
 import com.questline.app.data.Txn
+import com.questline.app.domain.finance.findMirror
+import com.questline.app.domain.finance.unexplainedDelta
 import com.questline.app.ui.theme.Q
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +66,10 @@ fun PendingInboxSection(repo: AppRepo) {
     // пункты — даём вторую волну, но не спамим бесконечно).
     val aiAttempted = remember { HashMap<Long, Int>() }
     val accounts = remember { AccountsPrefs.list(context) }
+    // Диалоги инбокса: запись перевода «между своими» (TRANSFER) и вопрос о
+    // необъяснённой дельте баланса после подтверждения обычного пуша.
+    var transferItem by remember { mutableStateOf<PendingTxn?>(null) }
+    var deltaQuestion by remember { mutableStateOf<DeltaQuestion?>(null) }
 
     if (pending.isEmpty()) {
         // Молчаливый отказ — худший сценарий: пуш не пришёл и пользователь не знает,
@@ -99,7 +106,11 @@ fun PendingInboxSection(repo: AppRepo) {
     val pendingKey = pending.joinToString("|") { "${it.id}:${it.status}" }
     LaunchedEffect(autoEnabled, pendingKey, categories) {
         if (!autoEnabled || pending.isEmpty()) return@LaunchedEffect
-        val fresh = pending.filter { it.type != "RECONCILE" && (aiAttempted[it.id] ?: 0) < 2 }
+        // TRANSFER подтверждает пользователь в диалоге «Перевод между своими» —
+        // авто-разбор не должен записывать такие пуши в расход.
+        val fresh = pending.filter {
+            it.type != "RECONCILE" && it.type != "TRANSFER" && (aiAttempted[it.id] ?: 0) < 2
+        }
         if (fresh.isEmpty()) return@LaunchedEffect
         fresh.forEach { aiAttempted[it.id] = (aiAttempted[it.id] ?: 0) + 1 }
         android.util.Log.d("AiAuto", "batch: ${fresh.size} cards, enabled=$autoEnabled")
@@ -174,6 +185,13 @@ fun PendingInboxSection(repo: AppRepo) {
                     },
                     onDiscardLike = { vm.discard(item) },
                 )
+            } else if (item.type == "TRANSFER") {
+                // Перевод себе: подтверждение — диалог с выбором карт, Txn не создаётся.
+                TransferPendingCard(
+                    item = item,
+                    onConfirm = { transferItem = item },
+                    onDiscard = { vm.discard(item) },
+                )
             } else {
                 PendingCard(
                     item = item,
@@ -207,22 +225,12 @@ fun PendingInboxSection(repo: AppRepo) {
                                 vm.confirm(item, categoryId, last4)
                             }
                             val unexplained = detectAndUpdateBalance(context, repo, item)
-                            if (unexplained != null &&
-                                pending.none { it.type == "RECONCILE" && it.text == item.text }
-                            ) {
-                                if (last4 != null) {
-                                    repo.pending.insert(
-                                        PendingTxn(
-                                            bankPackage = item.bankPackage,
-                                            title = "⚖ Сверка ••" + last4,
-                                            text = item.text,
-                                            amountMinor = unexplained,
-                                            type = "RECONCILE",
-                                            epochDay = item.epochDay,
-                                            receivedMillis = System.currentTimeMillis(),
-                                        ),
-                                    )
-                                }
+                            if (unexplained != null && last4 != null) {
+                                // Расхождение не объясняется операцией — спрашиваем
+                                // пользователя (новые средства / перевод с другой карты).
+                                // Карточку-сверку больше не заводим.
+                                val card = AccountsPrefs.list(context).firstOrNull { it.last4 == last4 }
+                                if (card != null) deltaQuestion = DeltaQuestion(card, unexplained)
                             }
                         }
                     },
@@ -230,6 +238,81 @@ fun PendingInboxSection(repo: AppRepo) {
                 )
             }
         }
+    }
+
+    // Диалог «Перевод между своими»: списание с одной карты и зачисление на другую
+    // без создания транзакции — двигаем только балансы.
+    transferItem?.let { item ->
+        TransferBetweenOwnDialog(
+            item = item,
+            onDismiss = { transferItem = null },
+            onRecord = { source, target ->
+                scope.launch {
+                    val now = System.currentTimeMillis()
+                    val amount = abs(item.amountMinor)
+                    AccountsPrefs.upsertBalance(
+                        context, source.id, displayedBalance(repo, source) - amount, now,
+                    )
+                    AccountsPrefs.upsertBalance(
+                        context, target.id, displayedBalance(repo, target) + amount, now,
+                    )
+                    // Пуш пишет last4 счёта, а карта заведена last4 карты — запоминаем
+                    // соответствие, чтобы следующие пуши матчились сами.
+                    val pushLast4s = extractPushLast4s(item.title + "\n" + item.text)
+                    pushLast4s.getOrNull(0)?.takeIf { it != source.last4 }?.let {
+                        AccountsPrefs.rememberAccountMap(context, it, source.last4)
+                    }
+                    pushLast4s.getOrNull(1)?.takeIf { it != target.last4 }?.let {
+                        AccountsPrefs.rememberAccountMap(context, it, target.last4)
+                    }
+                    // Механизм тот же, что у обычного confirm: статус — и карточка уходит.
+                    repo.pending.setStatus(item.id, "CONFIRMED")
+                }
+            },
+        )
+    }
+
+    // Вопрос о необъяснённой дельте: новые средства, перевод с другой карты
+    // или оставить метку до разбора позже.
+    deltaQuestion?.let { q ->
+        TransferQuestionDialog(
+            cardLast4 = q.card.last4,
+            unexplainedMinor = q.unexplained,
+            others = AccountsPrefs.list(context).filter { it.id != q.card.id },
+            onDismiss = { deltaQuestion = null },
+            onNewMoney = {
+                // Новые средства: метку не ставим, старую метку карты снимаем.
+                AccountsPrefs.clearUnexplainedDelta(context, q.card.last4)
+                deltaQuestion = null
+            },
+            onTransferFrom = { source ->
+                scope.launch {
+                    val now = System.currentTimeMillis()
+                    AccountsPrefs.upsertBalance(
+                        context, source.id, displayedBalance(repo, source) - q.unexplained, now,
+                    )
+                    // У источника могла остаться свежая зеркальная метка с его пуша —
+                    // перевод её объясняет, снимаем.
+                    val mirror = findMirror(
+                        q.unexplained,
+                        AccountsPrefs.unexplainedDeltas(context),
+                        MIRROR_WINDOW_MS,
+                        now,
+                    )
+                    if (mirror == source.last4) {
+                        AccountsPrefs.clearUnexplainedDelta(context, source.last4)
+                    }
+                    deltaQuestion = null
+                }
+            },
+            onKeepAsIs = {
+                // Разбор позже: метка дельты пригодится при поиске зеркал.
+                AccountsPrefs.putUnexplainedDelta(
+                    context, q.card.last4, q.unexplained, System.currentTimeMillis(),
+                )
+                deltaQuestion = null
+            },
+        )
     }
 }
 
@@ -239,10 +322,11 @@ fun PendingInboxSection(repo: AppRepo) {
  * ставится позже createdAt транзакции, поэтому подтверждённая операция
  * не учитывается в движении дважды.
  *
- * Заодно детектим расхождение: разница между пришедшим остатком и ожидаемым
- * может не объясняться подтверждаемой операцией (переводы внутри приложения
- * банка пуши не порождают). Такая необъяснённая дельта возвращается со знаком —
- * вызывающий код заводит карточку-сверку.
+ * Заодно детектим расхождение: разница между пришедшим остатком, отображаемым
+ * балансом и суммой только что подтверждённых записей карты может объясняться
+ * переводом «между своими» (банк такие пуши не шлёт). Необъяснённая дельта
+ * возвращается со знаком — вызывающий код показывает диалог-вопрос
+ * (TransferQuestionDialog).
  */
 private fun detectAndUpdateBalance(
     context: android.content.Context,
@@ -258,14 +342,76 @@ private fun detectAndUpdateBalance(
         BalancePrefs.setValue(context, balanceMinor, now)
         return null
     }
-    val expected = account.balanceMinor
-    val delta = balanceMinor - expected
-    val explained = if (item.type == "INCOME") item.amountMinor else -item.amountMinor
-    val unexplained = delta - explained
+    // Отображаемый баланс на момент пуша: чистый поток после якоря здесь
+    // недоступен (это Flow), для свежего пуша абсолют и есть отображаемый.
+    val displayedMinor = account.balanceMinor
+    // Сумма только что подтверждённых записей этой карты — сама операция из пуша.
+    val confirmedNet = if (item.type == "INCOME") item.amountMinor else -item.amountMinor
+    val unexplained = unexplainedDelta(balanceMinor, displayedMinor, confirmedNet)
     // Источник всегда синхронизируем пришедшим остатком — даже без расхождения.
     AccountsPrefs.upsertBalance(context, account.id, balanceMinor, now)
     // Нескалиброванную карту с нулевым балансом не проверяем;
     // |дельта| < 1 ₽ считаем копеечным шумом.
-    return if (abs(unexplained) >= 100 && expected != 0L) unexplained else null
+    return if (abs(unexplained) >= 100 && displayedMinor != 0L) unexplained else null
+}
+
+/**
+ * Текущий отображаемый баланс карты: абсолют с якоря + чистый поток операций
+ * после якоря — та же величина, что показывает AccountsBar.
+ */
+private suspend fun displayedBalance(repo: AppRepo, account: Account): Long =
+    account.balanceMinor +
+        repo.txns.observeNetForAccount(account.last4, account.anchorMillis).first()
+
+/** Открытый вопрос о необъяснённой дельте баланса подтверждённой карты. */
+private data class DeltaQuestion(val card: Account, val unexplained: Long)
+
+/** Карточка TRANSFER-пуша: без категорий, подтверждение — диалог перевода. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TransferPendingCard(
+    item: PendingTxn,
+    onConfirm: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    val time = remember(item.receivedMillis) {
+        Instant.ofEpochMilli(item.receivedMillis).atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("d MMM, HH:mm"))
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Q.accentSoft, RoundedCornerShape(16.dp))
+            .border(1.dp, Q.accent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "⇄ Перевод своей",
+                style = MaterialTheme.typography.labelMedium,
+                color = Q.accent,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(time, style = MaterialTheme.typography.labelSmall, color = Q.inkMuted)
+            Spacer(Modifier.weight(1f))
+            Text(
+                MoneyFormat.text(abs(item.amountMinor)),
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            item.text.take(120),
+            style = MaterialTheme.typography.bodySmall,
+            color = Q.inkMuted,
+            maxLines = 2,
+        )
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onConfirm) { Text("Записать перевод") }
+            TextButton(onClick = onDiscard) { Text("Отбросить", color = Q.inkMuted) }
+        }
+    }
 }
 
